@@ -1,7 +1,7 @@
 import json from "./json";
 import { requireAuth } from "./auth";
 
-export  async function profileget(req, env) {
+export async function profileget(req, env) {
     const user = await requireAuth(req, env);
     if (!user) return json({ error: "Unauthorized" }, 401);
 
@@ -11,9 +11,11 @@ export  async function profileget(req, env) {
 
     return json({ user: result });
 }
-export  async function profileput(req, env) {
+export async function profileput(req, env) {
     const user = await requireAuth(req, env);
     if (!user) return json({ error: "Unauthorized" }, 401);
+
+
     const { name } = await req.json();
     await env.cldb.prepare(
         "UPDATE users SET name = ? WHERE user_id = ?"
