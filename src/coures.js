@@ -8,7 +8,7 @@ export async function coursesget(req, env) {
         "SELECT * FROM courses"
     ).all();
 
-    return json({ courses: result });
+    return json({ courses: result.results });
 }
 export async function coursespost(req, env) {
     const user = await requireAuth(req, env);
