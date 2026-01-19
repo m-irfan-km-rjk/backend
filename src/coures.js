@@ -1,7 +1,7 @@
 import json from "./json";
 import { requireAuth } from "./auth";
 
-export async function coursesget(req, env) {
+export async function coursesget(req, env,url) {
     const user = await requireAuth(req, env);
     if (!user) return json({ error: "Unauthorized" }, 401);
     const result = await env.cldb.prepare(
@@ -22,3 +22,14 @@ export async function coursespost(req, env) {
     ).bind(id, title, description, created_at).run();
     return json({ success: true, message: "Course created successfully" });
 }
+
+export async function coursesdelete(req, env) {
+    const user = await requireAuth(req, env);
+    if (!user) return json({ error: "Unauthorized" }, 401);
+    const { title } = await req.json();
+    await env.cldb.prepare(
+        "DELETE FROM courses WHERE title = ?"
+    ).bind(title).run();
+    return json({ success: true, message: "Course deleted successfully" });
+}
+
