@@ -4,7 +4,7 @@ import login from "./login";
 import json from "./json";
 import { profileget, profileput } from "./profile";
 import { videoget, videoput } from "./video";
-import { coursesget, coursespost, coursesput, coursesdelete } from "./coures";
+import { coursesget, coursespost, coursesdelete } from "./coures";
 
 export default {
 	async fetch(req, env, ctx) {
@@ -21,7 +21,6 @@ export default {
 		else if (path === "/video" && method === "PUT") return videoput(req, env);
 		else if (path === "/courses" && method === "GET") return coursesget(req, env);
 		else if (path === "/courses" && method === "POST") return coursespost(req, env);
-		else if (path === "/courses" && method === "PUT") return coursesput(req, env,url);
 		else if (path === "/courses" && method === "DELETE") return coursesdelete(req, env);
 
 		return new Response("Not Found", { status: 404 });
