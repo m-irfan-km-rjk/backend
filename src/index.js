@@ -22,6 +22,8 @@ export default {
 		else if (path === "/courses" && method === "GET") return coursesget(req, env);
 		else if (path === "/courses" && method === "POST") return coursespost(req, env);
 		else if (path === "/courses" && method === "DELETE") return coursesdelete(req, env);
+		else if (path === "/units" && method === "GET") return unitsget(req, env);
+		else if (path === "/units" && method === "DELETE") return unitsdelete(req, env);
 
 		return new Response("Not Found", { status: 404 });
 	},
