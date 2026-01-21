@@ -20,6 +20,7 @@ const updateusers = async (req, env) => {
     ).bind(name, email, role, user_id).run();
     return json({ success: true, message: "User updated successfully" });
 }
+
 const deleteusers = async (req, env) => {
     const user = await requireAuth(req, env);
     if (!user) return json({ error: "Unauthorized" }, 401);

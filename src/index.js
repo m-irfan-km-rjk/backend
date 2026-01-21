@@ -5,7 +5,6 @@ import json from "./json";
 import { profileget, profileput } from "./profile";
 import { videoget, videoput } from "./video";
 import { coursesget, coursespost, coursesdelete } from "./coures";
-import { coursesget, coursespost } from "./coures";
 import { adminusersget, updateusers, deleteusers } from "./admin";
 
 export default {
