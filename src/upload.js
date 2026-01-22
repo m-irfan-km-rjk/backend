@@ -5,30 +5,32 @@ export async function uploadVideo(req, env) {
     const user = await requireAuth(req, env);
     if (!user) return json({ error: "Unauthorized" }, 401);
 
-    const { filename, fileType } = await req.json();
-    if (!filename) return json({ error: "Filename is required" }, 400);
+    const formData = await req.formData();
+    const file = formData.get("file");
 
-    const key = `videos/${crypto.randomUUID()}-${filename}`;
-    const signedUrl = await env.files.createSignedUrl(
-        key,
-        60 * 60 * 24 // 24 hours
-    );
+    if (!file || !(file instanceof File)) {
+        return json({ error: "File is required" }, 400);
+    }
 
-    return json({ url: signedUrl, key });
+    const key = `videos/${crypto.randomUUID()}-${file.name}`;
+    await env.files.put(key, file);
+
+    return json({ success: true, key: key, message: "Video uploaded successfully" });
 }
 
 export async function uploadImage(req, env) {
     const user = await requireAuth(req, env);
     if (!user) return json({ error: "Unauthorized" }, 401);
 
-    const { filename } = await req.json();
-    if (!filename) return json({ error: "Filename is required" }, 400);
+    const formData = await req.formData();
+    const file = formData.get("file");
 
-    const key = `images/${crypto.randomUUID()}-${filename}`;
-    const signedUrl = await env.files.createSignedUrl(
-        key,
-        60 * 60 * 24 // 24 hours
-    );
+    if (!file || !(file instanceof File)) {
+        return json({ error: "File is required" }, 400);
+    }
 
-    return json({ url: signedUrl, key });
+    const key = `images/${crypto.randomUUID()}-${file.name}`;
+    await env.files.put(key, file);
+
+    return json({ success: true, key: key, message: "Image uploaded successfully" });
 }
