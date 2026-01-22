@@ -8,6 +8,7 @@ import { coursesget, coursespost, coursesdelete } from "./coures";
 import { adminusersget, updateusers, deleteusers } from "./admin";
 import { unitsget, unitsdelete } from "./units";
 import { subjectsget, subjectsdelete, subjectspost } from "./subjects";
+import { uploadVideo, uploadImage } from "./upload";
 
 export default {
 	async fetch(req, env, ctx) {
@@ -30,6 +31,8 @@ export default {
 		else if (path === "/subjects" && method === "GET") return subjectsget(req, env);
 		else if (path === "/subjects" && method === "DELETE") return subjectsdelete(req, env);
 		else if (path === "/subjects" && method === "POST") return subjectspost(req, env);
+		else if (path === "/upload/video" && method === "PUT") return uploadVideo(req, env);
+		else if (path === "/upload/image" && method === "PUT") return uploadImage(req, env);
 
 		else if (path === "/admin/users" && method === "GET") return adminusersget(req, env);
 		else if (path === "/admin/users" && method === "PUT") return updateusers(req, env);
