@@ -34,3 +34,9 @@ export async function uploadImage(req, env) {
 
     return json({ success: true, key: key, message: "Image uploaded successfully" });
 }
+
+export async function uploadFileToStorage(file, folder, env) {
+    const key = `${folder}/${crypto.randomUUID()}-${file.name}`;
+    await env.files.put(key, file);
+    return key;
+}
