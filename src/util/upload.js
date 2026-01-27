@@ -40,11 +40,11 @@ export async function uploadFileToStorage(file, folder, name, env) {
     if (!env?.files) throw new Error("R2 binding 'files' not found");
 
     const filename = name || `${crypto.randomUUID()}-${file.name}`;
-    const key = `${folder}/${filename}`;
+    const key = `${folder}/${filename}.${file.name.split(".").pop()}`;
 
     await env.files.put(
         key,
-        file.stream(),           // ✅ REQUIRED
+        file.stream(),
         {
             httpMetadata: {
                 contentType: file.type || "application/octet-stream"

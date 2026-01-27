@@ -31,8 +31,8 @@ export async function coursespost(req, env) {
         if (file instanceof File) {
             course_image = await uploadFileToStorage(
                 file,
-                `courses/${id}`,     // ✅ FIX
-                "thumbnail.png",
+                `courses/${id}`,
+                "thumbnail",
                 env
             );
         }

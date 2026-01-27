@@ -78,7 +78,7 @@ export async function subjectspost(req, env) {
             subject_image = await uploadFileToStorage(
                 file,
                 `courses/${course_id}/subjects/${subject_id}`,
-                "thumbnail.png",
+                "thumbnail",
                 env
             );
         }

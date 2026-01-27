@@ -75,7 +75,7 @@ export async function unitspost(req, env) {
             unit_image = await uploadFileToStorage(
                 file,
                 `courses/${course_id}/subjects/${subject_id}/units/${unit_id}`,
-                "thumbnail.png",
+                "thumbnail",
                 env
             );
         }
