@@ -2,12 +2,23 @@ import json from "../util/json";
 import { requireAuth } from "../users/auth";
 import { uploadFileToStorage } from "../util/upload";
 
-export async function coursesget(req, env, url) {
+export async function coursesget(req, env) {
     const user = await requireAuth(req, env);
     if (!user) return json({ error: "Unauthorized" }, 401);
-    const result = await env.cldb.prepare(
-        "SELECT * FROM courses"
-    ).all();
+
+    const url = new URL(req.url);
+    const subject_id = url.searchParams.get("subject_id");
+
+    let query = "SELECT * FROM courses";
+    const params = [];
+
+    if (subject_id) {
+        query += " WHERE subject_id = ?";
+        params.push(subject_id);
+    }
+
+    const stmt = env.cldb.prepare(query);
+    const result = params.length > 0 ? await stmt.bind(...params).all() : await stmt.all();
 
     return json({ courses: result.results });
 }

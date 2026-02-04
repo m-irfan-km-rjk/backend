@@ -8,6 +8,7 @@ export async function unitsget(req, env) {
 
     const url = new URL(req.url);
     const subject_id = url.searchParams.get("subject_id");
+    const course_id = url.searchParams.get("course_id");
 
     let query = "SELECT * FROM units";
     const params = [];
@@ -15,10 +16,13 @@ export async function unitsget(req, env) {
     if (subject_id) {
         query += " WHERE subject_id = ?";
         params.push(subject_id);
+    } else if (course_id) {
+        query += " WHERE course_id = ?";
+        params.push(course_id);
     }
 
     const stmt = env.cldb.prepare(query);
-    const result = subject_id ? await stmt.bind(...params).all() : await stmt.all();
+    const result = params.length > 0 ? await stmt.bind(...params).all() : await stmt.all();
 
     return json({ units: result.results });
 }
