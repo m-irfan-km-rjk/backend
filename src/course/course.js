@@ -67,10 +67,10 @@ export async function coursesdelete(req, env) {
     try {
         const user = await requireAuth(req, env);
         if (!user) return json({ error: "Unauthorized" }, 401);
-        const { title } = await req.json();
+        const { id } = await req.json();
         await env.cldb.prepare(
-            "DELETE FROM courses WHERE title = ?"
-        ).bind(title).run();
+            "DELETE FROM courses WHERE course_id  = ?"
+        ).bind(id).run();
         return json({ success: true, message: "Course deleted successfully" });
     } catch (error) {
         return json({ error: error.message || error }, 500);

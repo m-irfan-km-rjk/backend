@@ -2,12 +2,12 @@ import { createToken, verifyToken } from "./users/auth";
 import signup from "./users/signup";
 import login from "./users/login";
 import json from "./util/json";
-import { profileget, profileput } from "./users/profile";
+import { profileget, profileput, profileimageput } from "./users/profile";
 import { videoget, videoput } from "./util/video";
-import { coursesget, coursespost, coursesdelete } from "./course/course";
+import { coursesget, coursespost, coursesdelete, coursesput } from "./course/course";
 import { adminusersget, updateusers, deleteusers } from "./users/admin";
-import { unitsget, unitsdelete, unitspost } from "./course/units";
-import { subjectsget, subjectsdelete, subjectspost } from "./course/subjects";
+import { unitsget, unitsdelete, unitspost, unitsput } from "./course/units";
+import { subjectsget, subjectsdelete, subjectspost, subjectsput } from "./course/subjects";
 import { getVideoUploadLink, uploadImage } from "./util/upload";
 import { streamWebhook } from "./util/video";
 
@@ -22,6 +22,7 @@ export default {
 		else if (path == "/logout") { return json({ success: true }); }
 		else if (path == "/profile" && method == "GET") return profileget(req, env);
 		else if (path == "/profile" && method == "PUT") return profileput(req, env);
+		else if (path === "/profile/image" && method === "PUT") return profileimageput(req, env);
 		else if (path === "/video" && method === "GET") return videoget(req, env);
 		else if (path === "/video" && method === "PUT") return videoput(req, env);
 		else if (path === "/courses" && method === "GET") return coursesget(req, env);
