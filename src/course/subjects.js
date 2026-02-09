@@ -25,9 +25,9 @@ export async function subjectsget(req, env) {
 export async function subjectsdelete(req, env) {
     const user = await requireAuth(req, env);
     if (!user) return json({ error: "Unauthorized" }, 401);
-    const { title } = await req.json();
+    const { subject_id } = await req.json();
     await env.cldb.prepare(
-        "DELETE FROM subjects WHERE title = ?"
+        "DELETE FROM subjects WHERE subject_id = ?"
     ).bind(title).run();
     return json({ success: true, message: "Subject deleted successfully" });
 }

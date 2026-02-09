@@ -119,5 +119,6 @@ async function verifySignature(body, signature, secret) {
     return crypto.timingSafeEqual(
         encoder.encode(expected),
         encoder.encode(signature)
+        
     );
 }

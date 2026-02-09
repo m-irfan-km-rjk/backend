@@ -14,13 +14,13 @@ export async function verifyToken(token, secret) {
     return payload;
 }
 export async function requireAuth(req, env) {
-    /*const header = req.headers.get("Authorization");
+    const header = req.headers.get("Authorization");
     if (!header) return null;
     const token = header.replace("Bearer ", "");
     try {
         return await verifyToken(token, env.JWT_SECRET);
     } catch {
         return null;
-    }*/
+    }
     return true;
 }
