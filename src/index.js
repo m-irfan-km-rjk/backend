@@ -27,12 +27,15 @@ export default {
 		else if (path === "/courses" && method === "GET") return coursesget(req, env);
 		else if (path === "/courses" && method === "POST") return coursespost(req, env);
 		else if (path === "/courses" && method === "DELETE") return coursesdelete(req, env);
+		else if (path === "/courses" && method === "PUT") return coursesput(req, env);
 		else if (path === "/units" && method === "GET") return unitsget(req, env);
 		else if (path === "/units" && method === "DELETE") return unitsdelete(req, env);
 		else if (path === "/units" && method === "POST") return unitspost(req, env);
 		else if (path === "/subjects" && method === "GET") return subjectsget(req, env);
 		else if (path === "/subjects" && method === "DELETE") return subjectsdelete(req, env);
 		else if (path === "/subjects" && method === "POST") return subjectspost(req, env);
+		else if (path === "/units" && method === "PUT") return unitsput(req, env);
+		else if (path === "/subjects" && method === "PUT") return subjectsput(req, env);
 		else if (path === "/upload/video" && method === "GET") return getVideoUploadLink(req, env);
 		else if (path === "/stream/webhook" && method === "POST") return streamWebhook(req, env);
 		else if (path === "/upload/image" && method === "PUT") return uploadImage(req, env);

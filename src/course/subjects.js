@@ -107,3 +107,58 @@ export async function subjectspost(req, env) {
         return json({ error: e.message || e }, 500);
     }
 }
+
+export async function subjectsput(req, env) {
+    try {
+        const user = await requireAuth(req, env);
+        if (!user) return json({ error: "Unauthorized" }, 401);
+
+        let subject_id, title, subject_image;
+        const contentType = req.headers.get("Content-Type") || "";
+
+        if (contentType.includes("multipart/form-data")) {
+            const formData = await req.formData();
+            subject_id = formData.get("subject_id");
+            title = formData.get("title");
+            const file = formData.get("subject_image");
+
+            if (file instanceof File) {
+                // We need course_id to build the path
+                const subjectRow = await env.cldb
+                    .prepare("SELECT course_id FROM subjects WHERE subject_id = ?")
+                    .bind(subject_id)
+                    .first();
+
+                if (!subjectRow) {
+                    return json({ error: "Subject not found" }, 404);
+                }
+                const course_id = subjectRow.course_id;
+
+                subject_image = await uploadFileToStorage(
+                    file,
+                    `courses/${course_id}/subjects/${subject_id}`,
+                    "thumbnail",
+                    env
+                );
+            } else {
+                subject_image = file;
+            }
+        } else {
+            const body = await req.json();
+            subject_id = body.subject_id;
+            title = body.title;
+            subject_image = body.subject_image;
+        }
+
+        if (!subject_id) {
+            return json({ error: "subject_id is required" }, 400);
+        }
+
+        await env.cldb.prepare(
+            "UPDATE subjects SET title = ?, subject_image = ? WHERE subject_id = ?"
+        ).bind(title, subject_image, subject_id).run();
+        return json({ success: true, message: "Subject updated successfully" });
+    } catch (error) {
+        return json({ error: error.message || error }, 500);
+    }
+}

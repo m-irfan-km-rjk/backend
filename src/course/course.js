@@ -77,3 +77,58 @@ export async function coursesdelete(req, env) {
     }
 }
 
+export async function coursesput(req, env) {
+    try {
+        const user = await requireAuth(req, env);
+        if (!user) return json({ error: "Unauthorized" }, 401);
+
+        let course_id, title, description, course_image;
+        const contentType = req.headers.get("Content-Type") || "";
+
+        if (contentType.includes("multipart/form-data")) {
+            const formData = await req.formData();
+            course_id = formData.get("course_id");
+            title = formData.get("title");
+            description = formData.get("description");
+            const file = formData.get("course_image");
+
+            if (file instanceof File) {
+                course_image = await uploadFileToStorage(
+                    file,
+                    `courses/${course_id}`,
+                    "thumbnail",
+                    env
+                );
+            } else {
+                course_image = file;
+            }
+        } else {
+            const body = await req.json();
+            course_id = body.course_id;
+            title = body.title;
+            description = body.description;
+            course_image = body.course_image;
+        }
+
+        if (!course_id) {
+            return json({ error: "course_id is required" }, 400);
+        }
+
+        // If specific fields are undefined (not provided), we might want to avoid overwriting them with null.
+        // However, standard SQL update replaces. To allow partial updates, we'd need to construct the query dynamicallly.
+        // Assuming the client sends the current value if not changing it, or we fetch & merge.
+        // For now, I'll proceed with the provided values, but handle the case where we might overwrite with null if not careful.
+        // Actually, if it's form-data, getting a missing field returns null.
+        // Let's do a quick check to keep existing values if params are missing?
+        // The original code was: "UPDATE courses SET title = ?, description = ?, course_image = ? WHERE course_id = ?"
+        // implying it expects all values. I will stick to that logic but ensure we pass the variables we extracted.
+
+        await env.cldb.prepare(
+            "UPDATE courses SET title = ?, description = ?, course_image = ? WHERE course_id = ?"
+        ).bind(title, description, course_image, course_id).run();
+
+        return json({ success: true, message: "Course updated successfully" });
+    } catch (error) {
+        return json({ error: error.message || error }, 500);
+    }
+}

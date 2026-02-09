@@ -121,3 +121,63 @@ export async function unitsdelete(req, env) {
     ).bind(title).run();
     return json({ success: true, message: "Unit deleted successfully" });
 }
+
+export async function unitsput(req, env) {
+    try {
+        const user = await requireAuth(req, env);
+        if (!user) return json({ error: "Unauthorized" }, 401);
+
+        let unit_id, title, unit_image;
+        const contentType = req.headers.get("Content-Type") || "";
+
+        if (contentType.includes("multipart/form-data")) {
+            const formData = await req.formData();
+            unit_id = formData.get("unit_id");
+            title = formData.get("title");
+            const file = formData.get("unit_image");
+
+            if (file instanceof File) {
+                // Fetch IDs needed for path
+                const unitRow = await env.cldb
+                    .prepare(`
+                        SELECT u.subject_id, s.course_id 
+                        FROM units u 
+                        JOIN subjects s ON u.subject_id = s.subject_id 
+                        WHERE u.unit_id = ?
+                    `)
+                    .bind(unit_id)
+                    .first();
+
+                if (!unitRow) {
+                    return json({ error: "Unit not found" }, 404);
+                }
+                const { subject_id, course_id } = unitRow;
+
+                unit_image = await uploadFileToStorage(
+                    file,
+                    `courses/${course_id}/subjects/${subject_id}/units/${unit_id}`,
+                    "thumbnail",
+                    env
+                );
+            } else {
+                unit_image = file;
+            }
+        } else {
+            const body = await req.json();
+            unit_id = body.unit_id;
+            title = body.title;
+            unit_image = body.unit_image;
+        }
+
+        if (!unit_id) {
+            return json({ error: "unit_id is required" }, 400);
+        }
+
+        await env.cldb.prepare(
+            "UPDATE units SET title = ?, unit_image = ? WHERE unit_id = ?"
+        ).bind(title, unit_image, unit_id).run();
+        return json({ success: true, message: "Unit updated successfully" });
+    } catch (error) {
+        return json({ error: error.message || error }, 500);
+    }
+}
