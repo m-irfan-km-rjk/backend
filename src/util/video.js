@@ -119,6 +119,47 @@ async function verifySignature(body, signature, secret) {
     return crypto.timingSafeEqual(
         encoder.encode(expected),
         encoder.encode(signature)
-        
+
     );
+}
+
+export async function getVideoUploadLink(req, env) {
+
+    return await createUploadURL(env)
+}
+
+async function createUploadURL(env) {
+    const res = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/stream/direct_upload`,
+        {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${env.CF_STREAM_API_TOKEN}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                maxDurationSeconds: 600,   // optional
+                requireSignedURLs: false   // optional
+            })
+        }
+    )
+
+    const data = await res.json()
+
+    if (!data.success) {
+        return new Response(
+            JSON.stringify({ error: "Failed to create upload URL" }),
+            { status: 500 }
+        )
+    }
+
+    return new Response(
+        JSON.stringify({
+            uploadURL: data.result.uploadURL,
+            uid: data.result.uid
+        }),
+        {
+            headers: { "Content-Type": "application/json" }
+        }
+    )
 }

@@ -10,17 +10,7 @@ export default async function login(req, env) {
 
     if (!result) return json({ error: "User not found" }, 401);
 
-    // Hash incoming password
-    const hash = await crypto.subtle.digest(
-        "SHA-256",
-        new TextEncoder().encode(password)
-    );
-
-    const passwordHash = [...new Uint8Array(hash)]
-        .map(b => b.toString(16).padStart(2, "0"))
-        .join("");
-
-    if (passwordHash !== result.password)
+    if (password !== result.password)
         return json({ error: "Invalid password" }, 401);
 
     // 🔥 Update last_login

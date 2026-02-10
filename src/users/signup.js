@@ -12,8 +12,8 @@ export default async function signup(req, env) {
 
     try {
         await env.cldb.prepare(
-            "INSERT INTO users (user_id, email, password, name, role) VALUES (?, ?, ?, ?, ?)"
-        ).bind(id, email, passwordHash, name, role).run();
+            "INSERT INTO users (user_id, email, password, name, role, image) VALUES (?, ?, ?, ?, ?, ?)"
+        ).bind(id, email, passwordHash, name, role, "https://ui-avatars.com/api/?name=" + name.replaceAll(" ", "+") + "&background=random&color=random").run();
     } catch (error) {
         return json({ success: false, message: error.message }, 400);
     }

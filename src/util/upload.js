@@ -2,8 +2,6 @@ import json from "./json";
 import { requireAuth } from "../users/auth";
 
 export async function getVideoUploadLink(req, env) {
-    const user = await requireAuth(req, env);
-    if (!user) return json({ error: "Unauthorized" }, 401);
 
     const res = await fetch(
         `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/stream/direct_upload`,
