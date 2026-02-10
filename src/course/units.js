@@ -181,3 +181,119 @@ export async function unitsput(req, env) {
         return json({ error: error.message || error }, 500);
     }
 }
+
+export async function unitsvideoupdate(req, env) {
+    try {
+        const user = await requireAuth(req, env);
+        if (!user) return json({ error: "Unauthorized" }, 401);
+
+        const { unit_id, video_id, title, description } = await req.json();
+
+        await env.cldb.prepare(
+            `INSERT INTO videos 
+             (unit_id, title, video_id, description, created_at)
+             VALUES (?, ?, ?, ?, ?)`
+        ).bind(
+            unit_id,
+            title,
+            video_id,
+            description,
+            new Date().toISOString()
+        ).run();
+
+        return json({ success: true, message: "Video updated successfully" });
+    } catch (error) {
+        return json({ error: error.message || error }, 500);
+    }
+}
+
+export async function unitsvideosget(req, env) {
+    try {
+        const user = await requireAuth(req, env);
+        if (!user) return json({ error: "Unauthorized" }, 401);
+
+        const url = new URL(req.url);
+        const unit_id = url.searchParams.get("unit_id");
+
+        if (!unit_id) {
+            return json({ error: "unit_id is required" }, 400);
+        }
+
+        const { results: videos } = await env.cldb
+            .prepare(
+                `SELECT * FROM videos
+                 WHERE unit_id = ?
+                 ORDER BY position ASC`
+            )
+            .bind(unit_id)
+            .all();
+
+        // 🔁 Iterate non-final videos
+        for (const video of videos) {
+            if (video.status === "ready" || video.status === "failed") {
+                continue;
+            }
+
+            // 🔍 Ask Cloudflare Stream for truth
+            const res = await fetch(
+                `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/stream/${video.video_id}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${env.CF_STREAM_API_TOKEN}`
+                    }
+                }
+            );
+
+            const data = await res.json();
+
+            if (!data.success || !data.result?.status?.state) {
+                continue;
+            }
+
+            const state = data.result.status.state;
+
+            // ✅ READY
+            if (state === "ready") {
+                const videoUrl = data.result.playback?.hls;
+                const thumbnailUrl = data.result.thumbnail;
+                const duration = data.result.duration;
+
+                await env.cldb
+                    .prepare(
+                        `UPDATE videos
+             SET status = ?, video_url = ?, thumbnail_url = ?, duration = ?
+             WHERE video_id = ?`
+                    )
+                    .bind("ready", videoUrl, thumbnailUrl, duration, video.video_id)
+                    .run();
+
+                // Update in-memory object for response
+                video.status = "ready";
+                video.video_url = videoUrl;
+                video.thumbnail_url = thumbnailUrl;
+                video.duration = duration;
+            }
+
+            // ❌ FAILED
+            else if (state === "failed") {
+                await env.cldb
+                    .prepare(
+                        `UPDATE videos
+             SET status = ?
+             WHERE video_id = ?`
+                    )
+                    .bind("failed", video.video_id)
+                    .run();
+
+                video.status = "failed";
+            }
+
+            // ⏳ still uploading / processing → do nothing
+        }
+
+        return json({ videos });
+
+    } catch (error) {
+        return json({ error: error.message || error }, 500);
+    }
+}
