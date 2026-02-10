@@ -37,12 +37,12 @@ export default {
 		else if (path === "/subjects" && method === "POST") return subjectspost(req, env);
 		else if (path === "/units" && method === "PUT") return unitsput(req, env);
 		else if (path === "/subjects" && method === "PUT") return subjectsput(req, env);
-		else if (path === "/upload/video" && method === "GET") return getVideoUploadLink(req, env);
 		else if (path === "/stream/webhook" && method === "POST") return streamWebhook(req, env);
 		else if (path === "/upload/image" && method === "PUT") return uploadImage(req, env);
 		else if (path === "/admin/users" && method === "GET") return adminusersget(req, env);
 		else if (path === "/admin/users" && method === "PUT") return updateusers(req, env);
 		else if (path === "/admin/users" && method === "DELETE") return deleteusers(req, env);
+		else if (path === "/upload/video" && method === "GET") return getVideoUploadLink(req, env);
 
 		return new Response("Not Found", { status: 404 });
 	},
