@@ -1,6 +1,6 @@
 import json from "../util/json";
 import { requireAuth } from "../users/auth";
-import { uploadFileToStorage } from "../util/upload";
+import { uploadFileToStorage, deleteFileFromStorage } from "../util/upload";
 
 export async function unitsget(req, env) {
     const user = await requireAuth(req, env);
@@ -76,12 +76,8 @@ export async function unitspost(req, env) {
            ✅ UPLOAD IMAGE (only after validation)
         ------------------------------ */
         if (file instanceof File) {
-            unit_image = await uploadFileToStorage(
-                file,
-                `courses/${course_id}/subjects/${subject_id}/units/${unit_id}`,
-                "thumbnail",
-                env
-            );
+            unit_image = await uploadImage(file, env);
+            unit_image = unit_image.result.variants[0];
         }
 
         const created_at = new Date().toISOString();
@@ -115,10 +111,24 @@ export async function unitspost(req, env) {
 export async function unitsdelete(req, env) {
     const user = await requireAuth(req, env);
     if (!user) return json({ error: "Unauthorized" }, 401);
-    const { title } = await req.json();
+    const { id } = await req.json();
+
+    const unitRow = await env.cldb
+        .prepare(
+            "SELECT unit_image FROM units WHERE unit_id = ?"
+        )
+        .bind(id)
+        .first();
+
+    if (!unitRow) {
+        return json({ error: "Unit not found" }, 404);
+    }
+
+    await deleteFileFromStorage(unitRow.unit_image, env);
+
     await env.cldb.prepare(
-        "DELETE FROM units WHERE title = ?"
-    ).bind(title).run();
+        "DELETE FROM units WHERE unit_id = ?"
+    ).bind(id).run();
     return json({ success: true, message: "Unit deleted successfully" });
 }
 
@@ -153,12 +163,8 @@ export async function unitsput(req, env) {
                 }
                 const { subject_id, course_id } = unitRow;
 
-                unit_image = await uploadFileToStorage(
-                    file,
-                    `courses/${course_id}/subjects/${subject_id}/units/${unit_id}`,
-                    "thumbnail",
-                    env
-                );
+                unit_image = await updateImage(file, unitRow.unit_image, env);
+                unit_image = unit_image.result.variants[0];
             } else {
                 unit_image = file;
             }
@@ -293,6 +299,86 @@ export async function unitsvideosget(req, env) {
 
         return json({ videos });
 
+    } catch (error) {
+        return json({ error: error.message || error }, 500);
+    }
+}
+
+export async function unitsnotesget(req, env) {
+    try {
+        const user = await requireAuth(req, env);
+        if (!user) return json({ error: "Unauthorized" }, 401);
+
+        const url = new URL(req.url);
+        const unit_id = url.searchParams.get("unit_id");
+
+        if (!unit_id) {
+            return json({ error: "unit_id is required" }, 400);
+        }
+
+        const notes = await env.cldb.prepare(
+            "SELECT * FROM notes WHERE unit_id = ?"
+        ).bind(unit_id).all();
+
+        return json({ notes: notes.results });
+    } catch (error) {
+        return json({ error: error.message || error }, 500);
+    }
+}
+
+export async function unitsnotespost(req, env) {
+    try {
+        const user = await requireAuth(req, env);
+        if (!user) return json({ error: "Unauthorized" }, 401);
+
+        const { unit_id, title, note } = await req.json();
+
+        await env.cldb.prepare(
+            `INSERT INTO notes 
+             (unit_id, title, note, created_at)
+             VALUES (?, ?, ?, ?)`
+        ).bind(
+            unit_id,
+            title,
+            note,
+            new Date().toISOString()
+        ).run();
+
+        return json({ success: true, message: "Note created successfully" });
+    } catch (error) {
+        return json({ error: error.message || error }, 500);
+    }
+}
+
+export async function unitsnotesdelete(req, env) {
+    try {
+        const user = await requireAuth(req, env);
+        if (!user) return json({ error: "Unauthorized" }, 401);
+
+        const { note_id } = await req.json();
+
+        await env.cldb.prepare(
+            "DELETE FROM notes WHERE note_id = ?"
+        ).bind(note_id).run();
+
+        return json({ success: true, message: "Note deleted successfully" });
+    } catch (error) {
+        return json({ error: error.message || error }, 500);
+    }
+}
+
+export async function unitsnotesput(req, env) {
+    try {
+        const user = await requireAuth(req, env);
+        if (!user) return json({ error: "Unauthorized" }, 401);
+
+        const { note_id, title, note } = await req.json();
+
+        await env.cldb.prepare(
+            "UPDATE notes SET title = ?, note = ? WHERE note_id = ?"
+        ).bind(title, note, note_id).run();
+
+        return json({ success: true, message: "Note updated successfully" });
     } catch (error) {
         return json({ error: error.message || error }, 500);
     }
