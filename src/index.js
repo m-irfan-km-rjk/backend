@@ -4,7 +4,7 @@ import login from "./users/login";
 import json from "./util/json";
 import { profileget, profileput, profileimageput } from "./users/profile";
 import { videoget, videoput } from "./util/video";
-import { coursesget, coursespost, coursesdelete, coursesput, coursesbatchdelete, coursesbatchput } from "./course/course";
+import { coursesget, coursespost, coursesdelete, coursesput } from "./course/course";
 import { coursesbatchpost, coursesbatchget } from "./course/batch";
 import { adminusersget, updateusers, deleteusers } from "./users/admin";
 import { unitsget, unitsdelete, unitspost, unitsput, unitsvideoupdate, unitsvideosget } from "./course/units";
