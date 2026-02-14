@@ -676,3 +676,185 @@ export async function batchremoveteacher(req, env) {
         return json({ error: error.message || error }, 500);
     }
 }
+
+export async function batchteachersget(req, env) {
+    try {
+        // Auth
+        const user = await requireAuth(req, env);
+        if (!user) return json({ error: "Unauthorized" }, 401);
+
+        if (user.role !== "admin") {
+            return json(
+                { error: "Only admins can get batch teachers" },
+                403
+            );
+        }
+
+        const { batch_id } = await req.json();
+
+        if (!batch_id) {
+            return json({ error: "batch_id required" }, 400);
+        }
+
+        // 1️⃣ Validate batch exists
+        const batch = await env.cldb
+            .prepare("SELECT batch_id FROM batch WHERE batch_id = ?")
+            .bind(batch_id)
+            .first();
+
+        if (!batch) {
+            return json({ error: "Invalid batch_id" }, 404);
+        }
+
+        // 2️⃣ Get teachers for this batch
+        const teachers = await env.cldb
+            .prepare(
+                `
+                SELECT
+                    u.user_id,
+                    u.name,
+                    u.email,
+                    u.phone,
+                    u.profile_image,
+                    bt.joined_at
+                FROM batch_teachers bt
+                JOIN users u ON bt.teacher_id = u.user_id
+                WHERE bt.batch_id = ?
+                ORDER BY bt.joined_at ASC
+                `
+            )
+            .bind(batch_id)
+            .all();
+
+        return json({
+            success: true,
+            batch_id,
+            teachers: teachers.results
+        });
+
+    } catch (error) {
+        return json({ error: error.message || error }, 500);
+    }
+}
+
+export async function batchstudentsget(req, env) {
+    try {
+        // Auth
+        const user = await requireAuth(req, env);
+        if (!user) return json({ error: "Unauthorized" }, 401);
+
+        if (user.role !== "admin") {
+            return json(
+                { error: "Only admins can get batch students" },
+                403
+            );
+        }
+
+        const { batch_id } = await req.json();
+
+        if (!batch_id) {
+            return json({ error: "batch_id required" }, 400);
+        }
+
+        // 1️⃣ Validate batch exists
+        const batch = await env.cldb
+            .prepare("SELECT batch_id FROM batch WHERE batch_id = ?")
+            .bind(batch_id)
+            .first();
+
+        if (!batch) {
+            return json({ error: "Invalid batch_id" }, 404);
+        }
+
+        // 2️⃣ Get students for this batch
+        const students = await env.cldb
+            .prepare(
+                `
+                SELECT
+                    u.user_id,
+                    u.name,
+                    u.email,
+                    u.phone,
+                    u.profile_image,
+                    bs.joined_at
+                FROM batch_students bs
+                JOIN users u ON bs.student_id = u.user_id
+                WHERE bs.batch_id = ?
+                ORDER BY bs.joined_at ASC
+                `
+            )
+            .bind(batch_id)
+            .all();
+
+        return json({
+            success: true,
+            batch_id,
+            students: students.results
+        });
+
+    } catch (error) {
+        return json({ error: error.message || error }, 500);
+    }
+}
+
+export async function batchstudentsremove(req, env) {
+    try {
+        // Auth
+        const user = await requireAuth(req, env);
+        if (!user) return json({ error: "Unauthorized" }, 401);
+
+        if (user.role !== "admin") {
+            return json(
+                { error: "Only admins can remove batch students" },
+                403
+            );
+        }
+
+        const { batch_id, student_id } = await req.json();
+
+        if (!batch_id || !student_id) {
+            return json({ error: "batch_id and student_id required" }, 400);
+        }
+
+        // 1️⃣ Validate batch exists
+        const batch = await env.cldb
+            .prepare("SELECT batch_id FROM batch WHERE batch_id = ?")
+            .bind(batch_id)
+            .first();
+
+        if (!batch) {
+            return json({ error: "Invalid batch_id" }, 404);
+        }
+
+        // 2️⃣ Check student membership
+        const membership = await env.cldb
+            .prepare(
+                "SELECT 1 FROM batch_students WHERE batch_id = ? AND student_id = ?"
+            )
+            .bind(batch_id, student_id)
+            .first();
+
+        if (!membership) {
+            return json(
+                { error: "Student is not part of this batch" },
+                404
+            );
+        }
+
+        // 3️⃣ Remove student from batch
+        await env.cldb
+            .prepare(
+                "DELETE FROM batch_students WHERE batch_id = ? AND student_id = ?"
+            )
+            .bind(batch_id, student_id)
+            .run();
+
+        return json({
+            success: true,
+            message: "Student removed from batch successfully"
+        });
+
+    } catch (error) {
+        return json({ error: error.message || error }, 500);
+    }
+}

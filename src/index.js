@@ -5,7 +5,7 @@ import json from "./util/json";
 import { profileget, profileput, profileimageput } from "./users/profile";
 import { videoget, videoput } from "./util/video";
 import { coursesget, coursespost, coursesdelete, coursesput } from "./course/course";
-import { coursesbatchpost, coursesbatchget, coursesbatchdelete, coursesbatchput, genbatchcode, deletebatchcode, batchreq, batchreqget, batchreqaccept, deletebatchreq, batchreqreject, batchassignteacher, batchremoveteacher } from "./course/batch";
+import { coursesbatchpost, coursesbatchget, coursesbatchdelete, coursesbatchput, genbatchcode, deletebatchcode, batchreq, batchreqget, batchreqaccept, deletebatchreq, batchreqreject, batchassignteacher, batchremoveteacher, batchteachersget } from "./course/batch";
 import { adminusersget, updateusers, deleteusers } from "./users/admin";
 import { unitsget, unitsdelete, unitspost, unitsput, unitsvideoupdate, unitsvideosget, unitsnotesget, unitsnotespost, unitsnotesdelete, unitsnotesput } from "./course/units";
 import { subjectsget, subjectsdelete, subjectspost, subjectsput } from "./course/subjects";
@@ -43,6 +43,7 @@ export default {
 		else if (path === "/courses/batch/request/delete" && method === "DELETE") return deletebatchreq(req, env);
 		else if (path === "/courses/batch/teacher" && method === "POST") return batchassignteacher(req, env);
 		else if (path === "/courses/batch/teacher" && method === "DELETE") return batchremoveteacher(req, env);
+		else if (path === "/courses/batch/teacher" && method === "GET") return batchteachersget(req, env);
 
 		else if (path === "/units" && method === "GET") return unitsget(req, env);
 		else if (path === "/units" && method === "DELETE") return unitsdelete(req, env);
