@@ -142,9 +142,8 @@ export async function subjectsput(req, env) {
                     return json({ error: "Subject not found" }, 404);
                 }
                 const course_id = subjectRow.course_id;
-
-                subject_image = await updateImage(file, subjectRow.subject_image, env);
-                subject_image = subject_image.result.variants[0];
+                 const updated = await updateImage(file, subjectRow.subject_image.split("/")[subjectRow.subject_image.split("/").length - 2], env);
+                 subject_image = updated.imageUrl;
             } else {
                 subject_image = file;
             }

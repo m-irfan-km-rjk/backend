@@ -123,7 +123,7 @@ export async function coursesbatchput(req, env) {
                                 return json({ error: "Batch not found" }, 404);
                             }
         if (file instanceof File) {
-            const updated = await updateImage(file, courseRow.course_image.split("/")[courseRow.course_image.split("/").length - 2], env);
+            const updated = await updateImage(file, batchRow.batch_image.split("/")[batchRow.batch_image.split("/").length - 2], env);
             batch_image = updated.imageUrl;
         }else {
             batch_image = batchRow.batch_image;

@@ -164,8 +164,8 @@ export async function unitsput(req, env) {
                 }
                 const { subject_id, course_id } = unitRow;
 
-                unit_image = await updateImage(file, unitRow.unit_image, env);
-                unit_image = unit_image.result.variants[0];
+                const updated = await updateImage(file, unitRow.unit_image.split("/")[unitRow.unit_image.split("/").length - 2], env);
+                unit_image = updated.imageUrl;
             } else {
                 unit_image = file;
             }
