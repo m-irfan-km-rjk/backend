@@ -20,12 +20,11 @@ export async function videoput(req, env) {
 
 
 export async function streamWebhook(req, env) {
-
     if (req.method !== "POST") {
         return new Response("OK", { status: 200 });
     }
 
-    const signature = req.headers.get("CF-Webhook-Signature");
+    const signature = req.headers.get("Webhook-Signature");
     if (!signature) {
         return new Response("Unauthorized", { status: 401 });
     }
@@ -40,6 +39,7 @@ export async function streamWebhook(req, env) {
 
     if (!isValid) {
         console.warn("Invalid Stream webhook signature");
+        console.log(body, signature);
         return new Response("Unauthorized", { status: 401 });
     }
 
@@ -50,52 +50,82 @@ export async function streamWebhook(req, env) {
         return new Response("OK", { status: 200 });
     }
 
-    // Test webhook
-    if (!payload.type) {
-        console.log("Stream webhook test received");
-        return new Response("OK", { status: 200 });
-    }
-
-    const { type, uid } = payload;
+    const uid = payload.uid;
     if (!uid) return new Response("OK", { status: 200 });
 
-    console.log("Stream webhook event:", type, uid);
+    console.log("Stream webhook state:", payload.status?.state, uid);
 
     try {
-        if (type === "video.uploaded") {
-            await env.DB.prepare(`
-                UPDATE videos SET status = ? WHERE id = ?
-            `).bind("PROCESSING", uid).run();
-        }
-
-        if (type === "video.ready") {
-            await env.DB.prepare(`
-                UPDATE videos
-                SET status = ?, duration = ?, thumbnail = ?
-                WHERE id = ?
-            `).bind(
+        // VIDEO READY
+        if (
+            payload.status?.state === "ready" &&
+            payload.readyToStream === true
+        ) {
+            await env.cldb.prepare(`
+        UPDATE videos
+        SET status = ?, duration = ?, thumbnail_url = ?, video_url = ?
+        WHERE video_id = ?
+      `).bind(
                 "READY",
                 payload.duration ?? null,
                 payload.thumbnail ?? null,
+                payload.playback.hls ?? null,
                 uid
             ).run();
         }
 
-        if (type === "video.failed") {
-            await env.DB.prepare(`
-                UPDATE videos SET status = ? WHERE id = ?
-            `).bind("FAILED", uid).run();
+        // VIDEO FAILED
+        if (payload.status?.state === "error") {
+            await env.cldb.prepare(`
+        UPDATE videos
+        SET status = ?
+        WHERE video_id = ?
+      `).bind(
+                "FAILED",
+                uid
+            ).run();
         }
 
     } catch (err) {
         console.error("Webhook DB update failed:", err);
-        // still return 200
     }
 
     return new Response("OK", { status: 200 });
 }
 
-async function verifySignature(body, signature, secret) {
+async function verifySignature(body, header, secret) {
+    console.log("---- STREAM WEBHOOK DEBUG START ----");
+
+    if (!header) {
+        console.log("❌ No Webhook-Signature header");
+        return false;
+    }
+
+    if (!secret) {
+        console.log("❌ No secret configured");
+        return false;
+    }
+
+    const parts = header.split(",");
+    const timePart = parts.find(p => p.startsWith("time="));
+    const sigPart = parts.find(p => p.startsWith("sig1="));
+
+    if (!timePart || !sigPart) {
+        console.log("❌ Header missing time or sig1");
+        return false;
+    }
+
+    const time = timePart.split("=")[1];
+    const signature = sigPart.split("=")[1];
+
+    console.log("Parsed time:", time);
+    console.log("Signature from header:", signature);
+
+    const signedPayload = `${time}.${body}`;
+
+    console.log("Signed payload length:", signedPayload.length);
+    console.log("Signed payload (first 100 chars):", signedPayload.slice(0, 100));
+
     const encoder = new TextEncoder();
 
     const key = await crypto.subtle.importKey(
@@ -106,21 +136,21 @@ async function verifySignature(body, signature, secret) {
         ["sign"]
     );
 
-    const mac = await crypto.subtle.sign(
+    const signatureBuffer = await crypto.subtle.sign(
         "HMAC",
         key,
-        encoder.encode(body)
+        encoder.encode(signedPayload)
     );
 
-    const expected = Array.from(new Uint8Array(mac))
+    const expectedSignature = Array.from(new Uint8Array(signatureBuffer))
         .map(b => b.toString(16).padStart(2, "0"))
         .join("");
 
-    return crypto.timingSafeEqual(
-        encoder.encode(expected),
-        encoder.encode(signature)
+    console.log("Computed signature:", expectedSignature);
+    console.log("Matches:", expectedSignature === signature);
+    console.log("---- STREAM WEBHOOK DEBUG END ----");
 
-    );
+    return expectedSignature === signature;
 }
 
 export async function getVideoUploadLink(req, env) {
