@@ -126,9 +126,15 @@ export async function subjectsput(req, env) {
             subject_id = formData.get("subject_id");
             title = formData.get("title");
             const file = formData.get("subject_image");
+             const subjectRow = await env.cldb
+                    .prepare("SELECT course_id FROM subjects WHERE subject_id = ?")
+                    .bind(subject_id)
+                    .first();
 
             if (file instanceof File) {
                 // We need course_id to build the path
+               
+
                 const subjectRow = await env.cldb
                     .prepare("SELECT course_id FROM subjects WHERE subject_id = ?")
                     .bind(subject_id)
@@ -141,7 +147,7 @@ export async function subjectsput(req, env) {
                  const updated = await updateImage(file, subjectRow.subject_image.split("/")[subjectRow.subject_image.split("/").length - 2], env);
                  subject_image = updated.imageUrl;
             } else {
-                subject_image = file;
+                subject_image = subjectRow.subject_image;
             }
         } else {
             const body = await req.json();
