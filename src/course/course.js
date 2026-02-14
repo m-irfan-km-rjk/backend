@@ -1,7 +1,6 @@
 import json from "../util/json";
 import { requireAuth } from "../users/auth";
-import { updateImage, uploadImage, deleteImage } from "../util/upload";
-import { cleanupSubject } from "./subjects";
+import { uploadFileToStorage, deleteFileFromStorage, updateImage, uploadImage } from "../util/upload";
 
 export async function coursesget(req, env) {
     const user = await requireAuth(req, env);

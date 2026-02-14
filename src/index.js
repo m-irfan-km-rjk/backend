@@ -32,6 +32,8 @@ export default {
 		else if (path === "/courses" && method === "PUT") return coursesput(req, env);
 		else if (path === "/courses/batch" && method === "GET") return coursesbatchget(req, env);
 		else if (path === "/courses/batch" && method === "POST") return coursesbatchpost(req, env);
+		else if (path === "/courses/batch" && method === "DELETE") return coursesbatchdelete(req, env);
+		else if (path === "/courses/batch" && method === "PUT") return coursesbatchput(req, env);
 
 		else if (path === "/units" && method === "GET") return unitsget(req, env);
 		else if (path === "/units" && method === "DELETE") return unitsdelete(req, env);

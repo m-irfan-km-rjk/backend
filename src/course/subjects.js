@@ -1,7 +1,7 @@
 import json from "../util/json";
+import { updateImage, uploadImage, deleteImage } from "../util/upload";
 import { requireAuth } from "../users/auth";
-import { uploadImage, deleteImage, updateImage } from "../util/upload";
-import { deleteStreamVideo } from "./units";
+import { uploadFileToStorage, deleteFileFromStorage } from "../util/upload";
 
 export async function subjectsget(req, env) {
     const user = await requireAuth(req, env);
@@ -157,7 +157,7 @@ export async function subjectsdelete(req, env) {
         return json({ error: "Subject not found" }, 404);
     }
 
-    await cleanupSubject(id, env);
+    await deleteFileFromStorage(subjectRow.subject_image, env);
 
     return json({
         success: true,
@@ -203,10 +203,6 @@ export async function subjectspost(req, env) {
                 400
             );
         }
-
-        /* -----------------------------
-           ✅ UPLOAD IMAGE (only if valid)
-        ------------------------------ */
         if (file instanceof File) {
             subject_image = await uploadImage(file, env);
             subject_image = subject_image.result.variants[0];
@@ -250,9 +246,15 @@ export async function subjectsput(req, env) {
             subject_id = formData.get("subject_id");
             title = formData.get("title");
             const file = formData.get("subject_image");
+            const subjectRow = await env.cldb
+                .prepare("SELECT course_id FROM subjects WHERE subject_id = ?")
+                .bind(subject_id)
+                .first();
 
             if (file instanceof File) {
                 // We need course_id to build the path
+
+
                 const subjectRow = await env.cldb
                     .prepare("SELECT course_id FROM subjects WHERE subject_id = ?")
                     .bind(subject_id)
@@ -263,11 +265,10 @@ export async function subjectsput(req, env) {
                 }
                 const course_id = subjectRow.course_id;
 
-                const currentImageId = subjectRow.subject_image ? subjectRow.subject_image.split("/").slice(-2, -1)[0] : null;
-                const updated = await updateImage(file, currentImageId, env);
-                subject_image = updated.imageUrl;
+                subject_image = await updateImage(file, subjectRow.subject_image, env);
+                subject_image = subject_image.result.variants[0];
             } else {
-                subject_image = file;
+                subject_image = subjectRow.subject_image;
             }
         } else {
             const body = await req.json();
