@@ -127,44 +127,29 @@ export async function subjectsput(req, env) {
             title = formData.get("title");
             const file = formData.get("subject_image");
              const subjectRow = await env.cldb
-                    .prepare("SELECT course_id FROM subjects WHERE subject_id = ?")
+                    .prepare("SELECT subject_image FROM subjects WHERE subject_id = ?")
                     .bind(subject_id)
                     .first();
-
-            if (file instanceof File) {
+                    if(!subjectRow){
+                        return json({error:"subject not found"},404);
+                    }
+            if (file instanceof File) {             
                 // We need course_id to build the path
-               
-
-                const subjectRow = await env.cldb
-                    .prepare("SELECT course_id FROM subjects WHERE subject_id = ?")
-                    .bind(subject_id)
-                    .first();
-
-                if (!subjectRow) {
-                    return json({ error: "Subject not found" }, 404);
-                }
                 const course_id = subjectRow.course_id;
                  const updated = await updateImage(file, subjectRow.subject_image.split("/")[subjectRow.subject_image.split("/").length - 2], env);
                  subject_image = updated.imageUrl;
-            } else {
-                subject_image = subjectRow.subject_image;
-            }
+            
         } else {
-            const body = await req.json();
-            subject_id = body.subject_id;
-            title = body.title;
-            subject_image = body.subject_image;
+            subject_image = subjectRow.subject_image;
         }
-
-        if (!subject_id) {
-            return json({ error: "subject_id is required" }, 400);
-        }
-
+                    if (!subject_id) {
+                           return json({ error: "subject_id is required" }, 400);
+                                 }
         await env.cldb.prepare(
             "UPDATE subjects SET title = ?, subject_image = ? WHERE subject_id = ?"
         ).bind(title, subject_image, subject_id).run();
         return json({ success: true, message: "Subject updated successfully" });
-    } catch (error) {
+    }} catch (error) {
         return json({ error: error.message || error }, 500);
     }
 }
