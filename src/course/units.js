@@ -1,6 +1,6 @@
 import json from "../util/json";
 import { requireAuth } from "../users/auth";
-import { uploadFileToStorage, deleteFileFromStorage } from "../util/upload";
+import {updateImage, uploadImage, deleteImage }from "../util/upload";
 
 export async function unitsget(req, env) {
     const user = await requireAuth(req, env);

@@ -1,6 +1,6 @@
 import { requireAuth } from "../users/auth";
 import json from "../util/json";
-import { uploadImage } from "../util/upload";
+import {updateImage, uploadImage, deleteImage }from "../util/upload";
 
 export async function coursesbatchpost(req, env) {
     try {

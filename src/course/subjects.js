@@ -1,6 +1,6 @@
 import json from "../util/json";
+import {updateImage, uploadImage, deleteImage }from "../util/upload";
 import { requireAuth } from "../users/auth";
-import { uploadFileToStorage, deleteFileFromStorage, deleteImage } from "../util/upload";
 
 export async function subjectsget(req, env) {
     const user = await requireAuth(req, env);
@@ -83,10 +83,6 @@ export async function subjectspost(req, env) {
                 400
             );
         }
-
-        /* -----------------------------
-           ✅ UPLOAD IMAGE (only if valid)
-        ------------------------------ */
         if (file instanceof File) {
             subject_image = await uploadImage(file, env);
             subject_image = subject_image.result.variants[0];
