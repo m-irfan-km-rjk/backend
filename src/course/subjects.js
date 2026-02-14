@@ -1,6 +1,6 @@
 import json from "../util/json";
 import { requireAuth } from "../users/auth";
-import { uploadFileToStorage } from "../util/upload";
+import { uploadFileToStorage, deleteFileFromStorage } from "../util/upload";
 
 export async function subjectsget(req, env) {
     const user = await requireAuth(req, env);
@@ -25,10 +25,23 @@ export async function subjectsget(req, env) {
 export async function subjectsdelete(req, env) {
     const user = await requireAuth(req, env);
     if (!user) return json({ error: "Unauthorized" }, 401);
-    const { subject_id } = await req.json();
+    const { id } = await req.json();
+    const subjectRow = await env.cldb
+        .prepare(
+            "SELECT subject_image FROM subjects WHERE subject_id = ?"
+        )
+        .bind(id)
+        .first();
+
+    if (!subjectRow) {
+        return json({ error: "Subject not found" }, 404);
+    }
+
+    await deleteFileFromStorage(subjectRow.subject_image, env);
+
     await env.cldb.prepare(
         "DELETE FROM subjects WHERE subject_id = ?"
-    ).bind(title).run();
+    ).bind(id).run();
     return json({ success: true, message: "Subject deleted successfully" });
 }
 
@@ -75,12 +88,8 @@ export async function subjectspost(req, env) {
            ✅ UPLOAD IMAGE (only if valid)
         ------------------------------ */
         if (file instanceof File) {
-            subject_image = await uploadFileToStorage(
-                file,
-                `courses/${course_id}/subjects/${subject_id}`,
-                "thumbnail",
-                env
-            );
+            subject_image = await uploadImage(file, env);
+            subject_image = subject_image.result.variants[0];
         }
 
         const created_at = new Date().toISOString();
@@ -134,12 +143,8 @@ export async function subjectsput(req, env) {
                 }
                 const course_id = subjectRow.course_id;
 
-                subject_image = await uploadFileToStorage(
-                    file,
-                    `courses/${course_id}/subjects/${subject_id}`,
-                    "thumbnail",
-                    env
-                );
+                subject_image = await updateImage(file, subjectRow.subject_image, env);
+                subject_image = subject_image.result.variants[0];
             } else {
                 subject_image = file;
             }
