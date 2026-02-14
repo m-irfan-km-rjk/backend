@@ -1,6 +1,7 @@
 import json from "../util/json";
 import { requireAuth } from "../users/auth";
-import { uploadFileToStorage, deleteFileFromStorage } from "../util/upload";
+import { uploadImage, deleteImage, updateImage } from "../util/upload";
+import { deleteStreamVideo } from "./units";
 
 export async function subjectsget(req, env) {
     const user = await requireAuth(req, env);
@@ -22,27 +23,146 @@ export async function subjectsget(req, env) {
 
     return json({ subjects: result.results });
 }
-export async function subjectsdelete(req, env) {
-    const user = await requireAuth(req, env);
-    if (!user) return json({ error: "Unauthorized" }, 401);
-    const { id } = await req.json();
+
+export async function cleanupSubject(subject_id, env) {
+    // ---------- SUBJECT CHECK ----------
     const subjectRow = await env.cldb
-        .prepare(
-            "SELECT subject_image FROM subjects WHERE subject_id = ?"
-        )
-        .bind(id)
+        .prepare("SELECT subject_image FROM subjects WHERE subject_id = ?")
+        .bind(subject_id)
         .first();
 
     if (!subjectRow) {
+        // If subject doesn't exist, nothing to clean up. Return false or similar.
+        // Or just return, implying success (idempotent).
+        return;
+    }
+
+    // ---------- DELETE SUBJECT IMAGE ----------
+    if (subjectRow.subject_image) {
+        const imageId = subjectRow.subject_image.split("/").slice(-2, -1)[0];
+        try {
+            await deleteImage(imageId, env);
+        } catch (e) {
+            console.error(`Failed to delete subject image ${imageId}:`, e);
+        }
+    }
+
+    // ---------- GET ALL UNIT IDS ----------
+    const { results: units } = await env.cldb
+        .prepare("SELECT unit_id FROM units WHERE subject_id = ?")
+        .bind(subject_id)
+        .all();
+
+    const unitIds = units.map(u => u.unit_id);
+
+    if (unitIds.length > 0) {
+
+        // ---------- DELETE NOTE FILES ----------
+        const placeholders = unitIds.map(() => "?").join(",");
+
+        const { results: notes } = await env.cldb
+            .prepare(
+                `SELECT file_path FROM notes 
+                 WHERE unit_id IN (${placeholders})`
+            )
+            .bind(...unitIds)
+            .all();
+
+        for (const n of notes) {
+            if (n.file_path) {
+                const key = n.file_path.replace(
+                    "https://media.crescentlearning.org/",
+                    ""
+                );
+                try {
+                    await env.files.delete(key);
+                } catch (e) {
+                    console.error(`Failed to delete note file ${key}:`, e);
+                }
+            }
+        }
+
+        // ---------- DELETE VIDEOS FROM STREAM ----------
+        const { results: videos } = await env.cldb
+            .prepare(
+                `SELECT video_id FROM videos
+                 WHERE unit_id IN (${placeholders})`
+            )
+            .bind(...unitIds)
+            .all();
+
+        for (const v of videos) {
+            if (v.video_id) {
+                try {
+                    await deleteStreamVideo(v.video_id, env);
+                } catch (e) {
+                    console.error(`Failed to delete stream video ${v.video_id}:`, e);
+                }
+            }
+        }
+
+        // ---------- DELETE NOTES ROWS ----------
+        await env.cldb.prepare(
+            `DELETE FROM notes WHERE unit_id IN (${placeholders})`
+        ).bind(...unitIds).run();
+
+        // ---------- DELETE VIDEOS ROWS ----------
+        await env.cldb.prepare(
+            `DELETE FROM videos WHERE unit_id IN (${placeholders})`
+        ).bind(...unitIds).run();
+
+        // ---------- DELETE UNITS IMAGES ----------
+        // We should also delete unit images before deleting unit rows.
+        // It wasn't in original code explicitly, but requirements start "Implement DELETE logic... clean everything".
+        // Let's fetch unit images.
+        const { results: unitsWithImages } = await env.cldb
+            .prepare(`SELECT unit_image FROM units WHERE unit_id IN (${placeholders}) AND unit_image IS NOT NULL`)
+            .bind(...unitIds)
+            .all();
+
+        for (const u of unitsWithImages) {
+            if (u.unit_image) {
+                const uImgId = u.unit_image.split("/").slice(-2, -1)[0];
+                try {
+                    await deleteImage(uImgId, env);
+                } catch (e) {
+                    console.error("Failed to delete unit image", e);
+                }
+            }
+        }
+    }
+
+    // ---------- DELETE UNITS ----------
+    await env.cldb
+        .prepare("DELETE FROM units WHERE subject_id = ?")
+        .bind(subject_id)
+        .run();
+
+    // ---------- DELETE SUBJECT ----------
+    await env.cldb
+        .prepare("DELETE FROM subjects WHERE subject_id = ?")
+        .bind(subject_id)
+        .run();
+}
+
+export async function subjectsdelete(req, env) {
+    const user = await requireAuth(req, env);
+    if (!user) return json({ error: "Unauthorized" }, 401);
+
+    const { id } = await req.json(); // subject_id
+
+    // Check if subject exists (for 404 response compliance)
+    const exists = await env.cldb.prepare("SELECT 1 FROM subjects WHERE subject_id = ?").bind(id).first();
+    if (!exists) {
         return json({ error: "Subject not found" }, 404);
     }
 
-    await deleteFileFromStorage(subjectRow.subject_image, env);
+    await cleanupSubject(id, env);
 
-    await env.cldb.prepare(
-        "DELETE FROM subjects WHERE subject_id = ?"
-    ).bind(id).run();
-    return json({ success: true, message: "Subject deleted successfully" });
+    return json({
+        success: true,
+        message: "Subject deleted successfully"
+    });
 }
 
 export async function subjectspost(req, env) {
@@ -143,8 +263,9 @@ export async function subjectsput(req, env) {
                 }
                 const course_id = subjectRow.course_id;
 
-                subject_image = await updateImage(file, subjectRow.subject_image, env);
-                subject_image = subject_image.result.variants[0];
+                const currentImageId = subjectRow.subject_image ? subjectRow.subject_image.split("/").slice(-2, -1)[0] : null;
+                const updated = await updateImage(file, currentImageId, env);
+                subject_image = updated.imageUrl;
             } else {
                 subject_image = file;
             }

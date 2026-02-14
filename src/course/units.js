@@ -1,6 +1,6 @@
 import json from "../util/json";
 import { requireAuth } from "../users/auth";
-import { uploadFileToStorage, deleteFileFromStorage } from "../util/upload";
+import { uploadImage, updateImage, deleteImage } from "../util/upload";
 
 export async function unitsget(req, env) {
     const user = await requireAuth(req, env);
@@ -124,7 +124,10 @@ export async function unitsdelete(req, env) {
         return json({ error: "Unit not found" }, 404);
     }
 
-    await deleteFileFromStorage(unitRow.unit_image, env);
+    if (unitRow.unit_image) {
+        const imageId = unitRow.unit_image.split("/").slice(-2, -1)[0];
+        await deleteImage(imageId, env);
+    }
 
     await env.cldb.prepare(
         "DELETE FROM units WHERE unit_id = ?"
@@ -163,8 +166,9 @@ export async function unitsput(req, env) {
                 }
                 const { subject_id, course_id } = unitRow;
 
-                unit_image = await updateImage(file, unitRow.unit_image, env);
-                unit_image = unit_image.result.variants[0];
+                const currentImageId = unitRow.unit_image ? unitRow.unit_image.split("/").slice(-2, -1)[0] : null;
+                const updated = await updateImage(file, currentImageId, env);
+                unit_image = updated.imageUrl;
             } else {
                 unit_image = file;
             }
@@ -188,6 +192,8 @@ export async function unitsput(req, env) {
     }
 }
 
+
+//Remove this if unnecessary
 export async function unitsvideoupdate(req, env) {
     try {
         const user = await requireAuth(req, env);
@@ -234,69 +240,6 @@ export async function unitsvideosget(req, env) {
             .bind(unit_id)
             .all();
 
-        // 🔁 Iterate non-final videos
-        for (const video of videos) {
-            if (video.status === "ready" || video.status === "failed") {
-                continue;
-            }
-
-            // 🔍 Ask Cloudflare Stream for truth
-            const res = await fetch(
-                `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/stream/${video.video_id}`,
-                {
-                    headers: {
-                        Authorization: `Bearer ${env.CF_STREAM_API_TOKEN}`
-                    }
-                }
-            );
-
-            const data = await res.json();
-
-            if (!data.success || !data.result?.status?.state) {
-                continue;
-            }
-
-            const state = data.result.status.state;
-
-            // ✅ READY
-            if (state === "ready") {
-                const videoUrl = data.result.playback?.hls;
-                const thumbnailUrl = data.result.thumbnail;
-                const duration = data.result.duration;
-
-                await env.cldb
-                    .prepare(
-                        `UPDATE videos
-             SET status = ?, video_url = ?, thumbnail_url = ?, duration = ?
-             WHERE video_id = ?`
-                    )
-                    .bind("ready", videoUrl, thumbnailUrl, duration, video.video_id)
-                    .run();
-
-                // Update in-memory object for response
-                video.status = "ready";
-                video.video_url = videoUrl;
-                video.thumbnail_url = thumbnailUrl;
-                video.duration = duration;
-            }
-
-            // ❌ FAILED
-            else if (state === "failed") {
-                await env.cldb
-                    .prepare(
-                        `UPDATE videos
-             SET status = ?
-             WHERE video_id = ?`
-                    )
-                    .bind("failed", video.video_id)
-                    .run();
-
-                video.status = "failed";
-            }
-
-            // ⏳ still uploading / processing → do nothing
-        }
-
         return json({ videos });
 
     } catch (error) {
@@ -331,20 +274,91 @@ export async function unitsnotespost(req, env) {
         const user = await requireAuth(req, env);
         if (!user) return json({ error: "Unauthorized" }, 401);
 
-        const { unit_id, title, note } = await req.json();
+        const formData = await req.formData();
 
-        await env.cldb.prepare(
-            `INSERT INTO notes 
-             (unit_id, title, note, created_at)
-             VALUES (?, ?, ?, ?)`
-        ).bind(
+        const unit_id = formData.get("unit_id");
+        const title = formData.get("title");
+        const file = formData.get("file");
+
+        if (!unit_id || !title) {
+            return json({ error: "unit_id and title are required" }, 400);
+        }
+
+        // Validate unit relationship
+        const unitRow = await env.cldb
+            .prepare(`
+                SELECT u.subject_id, s.course_id
+                FROM units u
+                JOIN subjects s ON u.subject_id = s.subject_id
+                WHERE u.unit_id = ?
+            `)
+            .bind(unit_id)
+            .first();
+
+        if (!unitRow) {
+            return json({ error: "Unit not found" }, 404);
+        }
+
+        const { subject_id, course_id } = unitRow;
+
+        let file_path = null;
+        let mime_type = null;
+        let file_size = null;
+
+        // Upload file if provided
+        if (file && file instanceof File) {
+
+            const safeTitle = title.replace(/[^a-zA-Z0-9-_]/g, "_");
+
+            // get extension
+            const ext = file.name.includes(".")
+                ? file.name.split(".").pop()
+                : "";
+
+            file_path =
+                `courses/${course_id}/subjects/${subject_id}/units/${unit_id}/notes/${safeTitle}_${Date.now()}${ext ? "." + ext : ""}`;
+
+            mime_type = file.type || "application/octet-stream";
+            file_size = file.size;
+
+            await env.files.put(
+                file_path,
+                await file.arrayBuffer(),
+                {
+                    httpMetadata: {
+                        contentType: mime_type,
+                    },
+                }
+            );
+        }
+
+        const now = new Date().toISOString();
+
+        // Insert into DB (ONLY your existing columns)
+        await env.cldb.prepare(`
+            INSERT INTO notes (
+                unit_id,
+                title,
+                file_path,
+                mime_type,
+                file_size,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+        `).bind(
             unit_id,
             title,
-            note,
-            new Date().toISOString()
+            "https://media.crescentlearning.org/" + file_path,
+            mime_type,
+            file_size,
+            now
         ).run();
 
-        return json({ success: true, message: "Note created successfully" });
+        return json({
+            success: true,
+            message: "Note created successfully"
+        });
+
     } catch (error) {
         return json({ error: error.message || error }, 500);
     }
@@ -357,11 +371,40 @@ export async function unitsnotesdelete(req, env) {
 
         const { note_id } = await req.json();
 
+        if (!note_id) {
+            return json({ error: "note_id required" }, 400);
+        }
+
+        // Get note first
+        const note = await env.cldb
+            .prepare("SELECT file_path FROM notes WHERE note_id = ?")
+            .bind(note_id)
+            .first();
+
+        if (!note) {
+            return json({ error: "Note not found" }, 404);
+        }
+
+        // Delete file from R2 (if exists)
+        if (note.file_path) {
+            const objectKey = note.file_path.replace(
+                "https://media.crescentlearning.org/",
+                ""
+            );
+
+            await env.files.delete(objectKey);
+        }
+
+        // Delete from DB
         await env.cldb.prepare(
             "DELETE FROM notes WHERE note_id = ?"
         ).bind(note_id).run();
 
-        return json({ success: true, message: "Note deleted successfully" });
+        return json({
+            success: true,
+            message: "Note deleted successfully"
+        });
+
     } catch (error) {
         return json({ error: error.message || error }, 500);
     }
@@ -372,14 +415,112 @@ export async function unitsnotesput(req, env) {
         const user = await requireAuth(req, env);
         if (!user) return json({ error: "Unauthorized" }, 401);
 
-        const { note_id, title, note } = await req.json();
+        const formData = await req.formData();
 
-        await env.cldb.prepare(
-            "UPDATE notes SET title = ?, note = ? WHERE note_id = ?"
-        ).bind(title, note, note_id).run();
+        const note_id = formData.get("note_id");
+        const title = formData.get("title"); // optional
+        const file = formData.get("file");   // optional
 
-        return json({ success: true, message: "Note updated successfully" });
+        if (!note_id) {
+            return json({ error: "note_id required" }, 400);
+        }
+
+        // Get existing note
+        const existing = await env.cldb
+            .prepare("SELECT * FROM notes WHERE note_id = ?")
+            .bind(note_id)
+            .first();
+
+        if (!existing) {
+            return json({ error: "Note not found" }, 404);
+        }
+
+        // Start with existing values
+        let newTitle = title || existing.title;
+        let file_path = existing.file_path;
+        let mime_type = existing.mime_type;
+        let file_size = existing.file_size;
+
+        // If new file provided → replace file
+        if (file && file instanceof File) {
+
+            // delete old file (optional but recommended)
+            if (existing.file_path) {
+                const oldKey = existing.file_path.replace(
+                    "https://media.crescentlearning.org/",
+                    ""
+                );
+                await env.files.delete(oldKey);
+            }
+
+            const safeTitle = newTitle.replace(/[^a-zA-Z0-9-_]/g, "_");
+
+            const ext = file.name.includes(".")
+                ? file.name.split(".").pop()
+                : "";
+
+            const newKey =
+                `notes/${note_id}_${Date.now()}${ext ? "." + ext : ""}`;
+
+            mime_type = file.type || "application/octet-stream";
+            file_size = file.size;
+
+            await env.files.put(
+                newKey,
+                await file.arrayBuffer(),
+                {
+                    httpMetadata: {
+                        contentType: mime_type,
+                    },
+                }
+            );
+
+            file_path = `https://media.crescentlearning.org/${newKey}`;
+        }
+
+        // If user sent nothing to update
+        if (!title && !file) {
+            return json({ error: "Nothing to update" }, 400);
+        }
+
+        // Update DB
+        await env.cldb.prepare(`
+            UPDATE notes
+            SET title = ?, file_path = ?, mime_type = ?, file_size = ?
+            WHERE note_id = ?
+        `).bind(
+            newTitle,
+            file_path,
+            mime_type,
+            file_size,
+            note_id
+        ).run();
+
+        return json({
+            success: true,
+            message: "Note updated successfully"
+        });
+
     } catch (error) {
         return json({ error: error.message || error }, 500);
     }
+}
+
+export async function deleteStreamVideo(videoUid, env) {
+    const url =
+        `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/stream/${videoUid}`;
+
+    const res = await fetch(url, {
+        method: "DELETE",
+        headers: {
+            Authorization: `Bearer ${env.CF_STREAM_API_TOKEN}`,
+        },
+    });
+
+    if (!res.ok) {
+        const errText = await res.text();
+        console.log("Stream delete failed:", errText);
+    }
+
+    return res.ok;
 }

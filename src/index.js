@@ -7,7 +7,7 @@ import { videoget, videoput } from "./util/video";
 import { coursesget, coursespost, coursesdelete, coursesput } from "./course/course";
 import { coursesbatchpost, coursesbatchget } from "./course/batch";
 import { adminusersget, updateusers, deleteusers } from "./users/admin";
-import { unitsget, unitsdelete, unitspost, unitsput, unitsvideoupdate, unitsvideosget } from "./course/units";
+import { unitsget, unitsdelete, unitspost, unitsput, unitsvideoupdate, unitsvideosget, unitsnotesget, unitsnotespost, unitsnotesdelete, unitsnotesput } from "./course/units";
 import { subjectsget, subjectsdelete, subjectspost, subjectsput } from "./course/subjects";
 import { getVideoUploadLink, uploadImage } from "./util/upload";
 import { streamWebhook } from "./util/video";
@@ -41,7 +41,7 @@ export default {
 		else if (path === "/units/notes" && method === "POST") return unitsnotespost(req, env);
 		else if (path === "/units/notes" && method === "DELETE") return unitsnotesdelete(req, env);
 		else if (path === "/units/notes" && method === "PUT") return unitsnotesput(req, env);
-		else if (path === "/unit/videos/update" && method === "POST") return unitsvideoupdate(req, env);
+		//else if (path === "/unit/videos/update" && method === "POST") return unitsvideoupdate(req, env);
 		else if (path === "/unit/videos" && method === "GET") return unitsvideosget(req, env);
 		else if (path === "/subjects" && method === "GET") return subjectsget(req, env);
 		else if (path === "/subjects" && method === "DELETE") return subjectsdelete(req, env);
@@ -54,7 +54,7 @@ export default {
 		else if (path === "/admin/users" && method === "PUT") return updateusers(req, env);
 		else if (path === "/admin/users" && method === "DELETE") return deleteusers(req, env);
 
-		else if (path === "/upload/video" && method === "GET") return getVideoUploadLink(req, env);
+		else if (path === "/upload/video" && method === "POST") return getVideoUploadLink(req, env);
 		return new Response("Not Found", { status: 404 });
 	},
 };

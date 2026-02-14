@@ -1,6 +1,7 @@
 import json from "../util/json";
 import { requireAuth } from "../users/auth";
-import { uploadFileToStorage, deleteFileFromStorage, updateImage, uploadImage } from "../util/upload";
+import { updateImage, uploadImage, deleteImage } from "../util/upload";
+import { cleanupSubject } from "./subjects";
 
 export async function coursesget(req, env) {
     const user = await requireAuth(req, env);
@@ -63,15 +64,18 @@ export async function coursespost(req, env) {
     return json({ success: true });
 }
 
+
+
 export async function coursesdelete(req, env) {
     try {
         const user = await requireAuth(req, env);
         if (!user) return json({ error: "Unauthorized" }, 401);
+
         const { id } = await req.json();
+
+        // 1. Fetch course to get image
         const courseRow = await env.cldb
-            .prepare(
-                "SELECT course_image FROM courses WHERE course_id = ?"
-            )
+            .prepare("SELECT course_image FROM courses WHERE course_id = ?")
             .bind(id)
             .first();
 
@@ -79,13 +83,32 @@ export async function coursesdelete(req, env) {
             return json({ error: "Course not found" }, 404);
         }
 
-        await deleteImage(courseRow.course_image, env);
+        // 2. Delete Course Image
+        if (courseRow.course_image) {
+            const imageId = courseRow.course_image.split("/").slice(-2, -1)[0];
+            try {
+                await deleteImage(imageId, env);
+            } catch (e) {
+                console.error(`Failed to delete course image for course ${id}:`, e);
+            }
+        }
 
-        //error handling
+        // 3. Get all Subjects
+        const { results: subjects } = await env.cldb
+            .prepare("SELECT subject_id FROM subjects WHERE course_id = ?")
+            .bind(id)
+            .all();
 
+        // 4. Cleanup each subject (deletes units, videos, notes internally)
+        for (const sub of subjects) {
+            await cleanupSubject(sub.subject_id, env);
+        }
+
+        // 5. Delete Course Row
         await env.cldb.prepare(
-            "DELETE FROM courses WHERE course_id  = ?"
+            "DELETE FROM courses WHERE course_id = ?"
         ).bind(id).run();
+
         return json({ success: true, message: "Course deleted successfully" });
     } catch (error) {
         return json({ error: error.message || error }, 500);

@@ -5,37 +5,48 @@ export async function getVideoUploadLink(req, env) {
     const user = await requireAuth(req, env);
     if (!user) return json({ error: "Unauthorized" }, 401);
 
-    const url = new URL(req.url);
-    const maxDurationSeconds = url.searchParams.get("maxduration");
+    const { title, description, unit_id } = await req.json();
+
+    const uploadLength = req.headers.get("Upload-Length");
+    const uploadMetadata = req.headers.get("Upload-Metadata");
+
+    if (!uploadLength) {
+        return json({ error: "Upload-Length header required" }, 400);
+    }
 
     const res = await fetch(
-        `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/stream/direct_upload`,
+        `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/stream?direct_user=true`,
         {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${env.CF_STREAM_API_TOKEN}`,
-                "Content-Type": "application/json",
+                "Tus-Resumable": "1.0.0",
+                "Upload-Length": uploadLength,
+                "Upload-Metadata": uploadMetadata || "",
             },
-            body: JSON.stringify({
-                expiry: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-                maxDurationSeconds: maxDurationSeconds || 3600,
-                metadata: {
-                    user_id: user.user_id
-                }
-            }),
         }
     );
 
-    const data = await res.json();
-
-    if (!data.success) {
-        return json({ error: "Failed to create upload link", data: data }, 500);
+    if (res.status !== 201 && res.status !== 200) {
+        const errorText = await res.text();
+        console.error("Stream direct_user error:", errorText);
+        return json({ error: "Failed to create TUS upload session" }, 500);
     }
+
+    const uploadUrl = res.headers.get("Location");
+
+    if (!uploadUrl) {
+        return json({ error: "No upload URL returned" }, 500);
+    }
+
+    const uid = uploadUrl.split("/").pop().split("?")[0];
+
+    await env.cldb.prepare("INSERT INTO videos (video_id, title, description, unit_id) VALUES (?, ?, ?, ?)").bind(uid, title, description, unit_id).run();
 
     return json({
         success: true,
-        upload_url: data.result.uploadURL,
-        video_id: data.result.uid
+        upload_url: uploadUrl,
+        video_id: uid
     });
 }
 
@@ -175,4 +186,29 @@ export async function updateImage(newFile, oldImageId, env) {
         imageId: newImageId,
         imageUrl: newImageUrl
     };
+}
+
+export async function onRequest(req, env) {
+    const endpoint = `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/stream?direct_user=true`;
+
+    const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${env.CF_STREAM_API_TOKEN}`,
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": req.headers.get("Upload-Length"),
+            "Upload-Metadata": req.headers.get("Upload-Metadata"),
+        },
+    });
+
+    const destination = response.headers.get("Location");
+
+    return new Response(null, {
+        headers: {
+            "Access-Control-Expose-Headers": "Location",
+            "Access-Control-Allow-Headers": "",
+            "Access-Control-Allow-Origin": "",
+            Location: destination,
+        },
+    });
 }
