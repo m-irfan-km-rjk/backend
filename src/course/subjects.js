@@ -1,6 +1,6 @@
 import json from "../util/json";
 import { requireAuth } from "../users/auth";
-import { uploadFileToStorage, deleteFileFromStorage } from "../util/upload";
+import { uploadFileToStorage, deleteFileFromStorage, deleteImage } from "../util/upload";
 
 export async function subjectsget(req, env) {
     const user = await requireAuth(req, env);
@@ -37,7 +37,7 @@ export async function subjectsdelete(req, env) {
         return json({ error: "Subject not found" }, 404);
     }
 
-    await deleteFileFromStorage(subjectRow.subject_image, env);
+    await deleteImage(subjectRow.subject_image, env);
 
     await env.cldb.prepare(
         "DELETE FROM subjects WHERE subject_id = ?"

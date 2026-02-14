@@ -123,8 +123,9 @@ export async function unitsdelete(req, env) {
     if (!unitRow) {
         return json({ error: "Unit not found" }, 404);
     }
-
-    await deleteFileFromStorage(unitRow.unit_image, env);
+    else{
+         await deleteImage(unitRow.unit_image, env);
+    }
 
     await env.cldb.prepare(
         "DELETE FROM units WHERE unit_id = ?"
