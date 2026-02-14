@@ -153,10 +153,7 @@ export async function unitsput(req, env) {
                 // Fetch IDs needed for path
                 const unitRow = await env.cldb
                     .prepare(`
-                        SELECT u.subject_id, s.course_id 
-                        FROM units u 
-                        JOIN subjects s ON u.subject_id = s.subject_id 
-                        WHERE u.unit_id = ?
+                        SELECT unit_image FROM units WHERE unit_id=?
                     `)
                     .bind(unit_id)
                     .first();
