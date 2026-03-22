@@ -222,6 +222,7 @@ export async function unitsvideosget(req, env) {
 
         const url = new URL(req.url);
         const unit_id = url.searchParams.get("unit_id");
+        const batch_id = url.searchParams.get("batch_id");
 
         if (!unit_id) {
             return json({ error: "unit_id is required" }, 400);
@@ -229,11 +230,13 @@ export async function unitsvideosget(req, env) {
 
         const { results: videos } = await env.cldb
             .prepare(
-                `SELECT * FROM videos
-                 WHERE unit_id = ?
-                 ORDER BY position ASC`
+                `SELECT v.* FROM videos v
+                 LEFT JOIN video_access va ON v.video_id = va.video_id AND va.batch_id = ?
+                 WHERE v.unit_id = ? 
+                 AND (va.video_id IS NULL OR va.status = 1)
+                 ORDER BY v.position ASC`
             )
-            .bind(unit_id)
+            .bind(batch_id, unit_id)
             .all();
 
         return json({ videos });
