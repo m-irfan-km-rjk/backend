@@ -1,17 +1,29 @@
 import json from "../util/json";
 import { createToken, verifyToken } from "./auth";
+import { hashPassword } from "../util/hash"
 
 export default async function login(req, env) {
-    const { email, password } = await req.json();
+    const body = await req.json();
+
+    if (!body.email || !body.password) {
+        return json({ error: "Email and password required" }, 400);
+    }
+
+    const email = body.email.toLowerCase().trim();
+    const password = body.password;
 
     const result = await env.cldb.prepare(
-        "SELECT user_id, password, role FROM users WHERE email = ?"
+        "SELECT user_id, password, role, name FROM users WHERE email = ?"
     ).bind(email).first();
 
     if (!result) return json({ error: "User not found" }, 401);
 
-    if (password !== result.password)
+    // 🔐 hash incoming password
+    const hashedInput = await hashPassword(password);
+
+    if (hashedInput !== result.password) {
         return json({ error: "Invalid password" }, 401);
+    }
 
     // 🔥 Update last_login
     await env.cldb.prepare(
