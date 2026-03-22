@@ -11,6 +11,7 @@ import { unitsget, unitsdelete, unitspost, unitsput, unitsvideoupdate, unitsvide
 import { subjectsget, subjectsdelete, subjectspost, subjectsput } from "./course/subjects";
 import { getVideoUploadLink, uploadImage } from "./util/upload";
 import { streamWebhook } from "./util/video";
+import { sendOTP, verifyOTP } from "./util/otp";
 
 export default {
 	async fetch(req, env, ctx) {
@@ -67,6 +68,11 @@ export default {
 		else if (path === "/admin/users" && method === "DELETE") return deleteusers(req, env);
 
 		else if (path === "/upload/video" && method === "POST") return getVideoUploadLink(req, env);
+
+		//otp
+		else if (path === "/send-otp" && method === "POST") return sendOTP(req, env);
+		else if (path === "/verify-otp" && method === "POST") return verifyOTP(req, env);
+
 		return new Response("Not Found", { status: 404 });
 	},
 };

@@ -23,5 +23,12 @@
 			"binding": "files",
 			"bucket_name": "creascentlearning"
 		}
+	],
+	"kv_namespaces": [
+		{
+			"binding": "OTP_STORE",
+			"id": "e27a256725b04d109260bc0f8356f7d1",
+			"remote": true
+		}
 	]
 }
