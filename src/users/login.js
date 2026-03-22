@@ -9,7 +9,7 @@ export default async function login(req, env) {
         return json({ error: "Email and password required" }, 400);
     }
 
-    const email = body.email.toLowerCase().trim();
+    const email = body.email;
     const password = body.password;
 
     const result = await env.cldb.prepare(
