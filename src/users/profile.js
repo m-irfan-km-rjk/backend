@@ -9,7 +9,7 @@ export async function profileget(req, env) {
 
     const user_id = user.user_id;
 
-    // 1️⃣ Get user details (only needed fields)
+    // 1️⃣ User
     const user_details = await env.cldb.prepare(
         "SELECT user_id, name, email FROM users WHERE user_id = ?"
     ).bind(user_id).first();
@@ -18,10 +18,14 @@ export async function profileget(req, env) {
         return json({ error: "User not found" }, 404);
     }
 
-    // 2️⃣ Get structure (courses → subjects → units)
+    // 2️⃣ Structure (batch → course → subjects → units)
     const structure = await env.cldb.prepare(`
         SELECT 
-            c.course_id,
+            b.batch_id,
+            b.name AS batch_name,
+            b.batch_image,
+            b.course_id,
+
             c.title AS course_title,
             c.description,
             c.course_image,
@@ -34,28 +38,27 @@ export async function profileget(req, env) {
             u.title AS unit_title,
             u.unit_image
 
-        FROM courses c
-        JOIN user_courses uc ON uc.course_id = c.course_id
+        FROM batch_students bs
+        JOIN batch b ON bs.batch_id = b.batch_id
+        JOIN courses c ON b.course_id = c.course_id
         LEFT JOIN subjects s ON s.course_id = c.course_id
         LEFT JOIN units u ON u.subject_id = s.subject_id
 
-        WHERE uc.user_id = ?
-        ORDER BY c.course_id, s.subject_id, u.unit_id;
+        WHERE bs.student_id = ?
+        ORDER BY b.batch_id, s.subject_id, u.unit_id;
     `).bind(user_id).all();
 
-    // 3️⃣ Get videos (separate query)
+    // 3️⃣ Videos
     const videos = await env.cldb.prepare(`
-        SELECT video_id, unit_id, title, video_url
-        FROM videos
+        SELECT video_id, unit_id, title, video_url FROM videos
     `).all();
 
-    // 4️⃣ Get notes (separate query)
+    // 4️⃣ Notes
     const notes = await env.cldb.prepare(`
-        SELECT note_id, unit_id, title, file_path
-        FROM notes
+        SELECT note_id, unit_id, title, file_path FROM notes
     `).all();
 
-    // 5️⃣ Map videos by unit_id
+    // 5️⃣ Maps
     const videoMap = {};
     for (const v of videos.results) {
         if (!videoMap[v.unit_id]) videoMap[v.unit_id] = [];
@@ -66,7 +69,6 @@ export async function profileget(req, env) {
         });
     }
 
-    // 6️⃣ Map notes by unit_id
     const noteMap = {};
     for (const n of notes.results) {
         if (!noteMap[n.unit_id]) noteMap[n.unit_id] = [];
@@ -77,24 +79,31 @@ export async function profileget(req, env) {
         });
     }
 
-    // 7️⃣ Build nested structure
-    const courses = {};
+    // 6️⃣ Build batches
+    const batches = {};
 
     for (const row of structure.results) {
-        // COURSE
-        if (!courses[row.course_id]) {
-            courses[row.course_id] = {
-                course_id: row.course_id,
-                title: row.course_title,
-                description: row.description,
-                course_image: row.course_image,
-                subjects: {}
+
+        // 🟣 BATCH
+        if (!batches[row.batch_id]) {
+            batches[row.batch_id] = {
+                batch_id: row.batch_id,
+                name: row.batch_name,
+                batch_image: row.batch_image,
+                course: {
+                    course_id: row.course_id,
+                    title: row.course_title,
+                    description: row.description,
+                    course_image: row.course_image,
+                    subjects: {}
+                }
             };
         }
 
-        const course = courses[row.course_id];
+        const batch = batches[row.batch_id];
+        const course = batch.course;
 
-        // SUBJECT
+        // 🟡 SUBJECT
         if (row.subject_id) {
             if (!course.subjects[row.subject_id]) {
                 course.subjects[row.subject_id] = {
@@ -107,7 +116,7 @@ export async function profileget(req, env) {
 
             const subject = course.subjects[row.subject_id];
 
-            // UNIT
+            // 🔵 UNIT
             if (row.unit_id) {
                 if (!subject.units[row.unit_id]) {
                     subject.units[row.unit_id] = {
@@ -122,14 +131,11 @@ export async function profileget(req, env) {
         }
     }
 
-    // 8️⃣ Final response
-    const details = {
-        user: user_details,
-        courses
-    };
-
     return json({
-        data: details,
+        data: {
+            user: user_details,
+            batches
+        },
         success: true,
         message: "Profile fetched successfully"
     });
