@@ -46,7 +46,7 @@ export default {
 		else if (path === "/courses/batch/teacher" && method === "GET") return batchteachersget(req, env);
 
 		else if (path === "/units" && method === "GET") return unitsget(req, env);
-		else if (path === "/units" && method === "DELETE") return unitsdelete(req, env);
+		else if (path === "/units" && method === "DELETE") return unitsdelete(req, env); 
 		else if (path === "/units" && method === "POST") return unitspost(req, env);
 		else if (path === "/units" && method === "PUT") return unitsput(req, env);
 		else if (path === "/unit/notes" && method === "GET") return unitsnotesget(req, env);
