@@ -11,7 +11,7 @@ export async function profileget(req, env) {
 
     // 1️⃣ User
     const user_details = await env.cldb.prepare(
-        "SELECT user_id, name, email FROM users WHERE user_id = ?"
+        "SELECT user_id, name, email, role, phone, last_login, created_at, image FROM users WHERE user_id = ?"
     ).bind(user_id).first();
 
     if (!user_details) {
