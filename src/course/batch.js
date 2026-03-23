@@ -277,7 +277,7 @@ export async function batchreq(req, env) {
     const user = await requireAuth(req, env);
     if (!user) return json({ error: "Unauthorized" }, 401);
 
-    const { batch_id, code } = await req.json();
+    const { course_id, code } = await req.json();
 
     if (!batch_id || !code) {
         return json({ error: "batch_id and code required" }, 400);
@@ -288,8 +288,8 @@ export async function batchreq(req, env) {
     }
 
     const batch = await env.cldb
-        .prepare("SELECT * FROM batch WHERE batch_id = ? AND code = ?")
-        .bind(batch_id, code)
+        .prepare("SELECT * FROM batch WHERE course_id = ? AND code = ?")
+        .bind(course_id, code)
         .first();
     if (!batch) {
         return json({ error: "Invalid batch_id or code" }, 404);
