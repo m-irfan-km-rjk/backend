@@ -108,15 +108,75 @@ export async function unitspost(req, env) {
     }
 }
 
+export async function cleanupUnit(unit_id, env) {
+    // ---------- DELETE NOTE FILES ----------
+    const { results: notes } = await env.cldb
+        .prepare("SELECT file_path FROM notes WHERE unit_id = ?")
+        .bind(unit_id)
+        .all();
+
+    for (const n of notes) {
+        if (n.file_path) {
+            const key = n.file_path.replace(
+                "https://media.crescentlearning.org/",
+                ""
+            );
+            try {
+                await env.files.delete(key);
+            } catch (e) {
+                console.error(`Failed to delete note file ${key}:`, e);
+            }
+        }
+    }
+
+    // ---------- DELETE VIDEOS FROM STREAM ----------
+    const { results: videos } = await env.cldb
+        .prepare("SELECT video_id FROM videos WHERE unit_id = ?")
+        .bind(unit_id)
+        .all();
+
+    for (const v of videos) {
+        if (v.video_id) {
+            try {
+                await deleteStreamVideo(v.video_id, env);
+            } catch (e) {
+                console.error(`Failed to delete stream video ${v.video_id}:`, e);
+            }
+        }
+    }
+
+    // ---------- DELETE NOTES ROWS ----------
+    await env.cldb.prepare("DELETE FROM notes WHERE unit_id = ?").bind(unit_id).run();
+
+    // ---------- DELETE VIDEOS ROWS ----------
+    await env.cldb.prepare("DELETE FROM videos WHERE unit_id = ?").bind(unit_id).run();
+
+    // ---------- DELETE UNIT IMAGE ----------
+    const unitRow = await env.cldb
+        .prepare("SELECT unit_image FROM units WHERE unit_id = ?")
+        .bind(unit_id)
+        .first();
+
+    if (unitRow && unitRow.unit_image) {
+        const imageId = unitRow.unit_image.split("/").slice(-2, -1)[0];
+        try {
+            await deleteImage(imageId, env);
+        } catch (e) {
+            console.error("Failed to delete unit image", e);
+        }
+    }
+
+    // ---------- DELETE UNIT ROW ----------
+    await env.cldb.prepare("DELETE FROM units WHERE unit_id = ?").bind(unit_id).run();
+}
+
 export async function unitsdelete(req, env) {
     const user = await requireAuth(req, env);
     if (!user) return json({ error: "Unauthorized" }, 401);
     const { id } = await req.json();
 
     const unitRow = await env.cldb
-        .prepare(
-            "SELECT unit_image FROM units WHERE unit_id = ?"
-        )
+        .prepare("SELECT 1 FROM units WHERE unit_id = ?")
         .bind(id)
         .first();
 
@@ -124,14 +184,7 @@ export async function unitsdelete(req, env) {
         return json({ error: "Unit not found" }, 404);
     }
 
-    if (unitRow.unit_image) {
-        const imageId = unitRow.unit_image.split("/").slice(-2, -1)[0];
-        await deleteImage(imageId, env);
-    }
-
-    await env.cldb.prepare(
-        "DELETE FROM units WHERE unit_id = ?"
-    ).bind(id).run();
+    await cleanupUnit(id, env);
     return json({ success: true, message: "Unit deleted successfully" });
 }
 

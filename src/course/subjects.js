@@ -2,6 +2,7 @@ import json from "../util/json";
 import { updateImage, uploadImage, deleteImage } from "../util/upload";
 import { requireAuth } from "../users/auth";
 import { uploadFileToStorage, deleteFileFromStorage } from "../util/upload";
+import { cleanupUnit } from "./units.js";
 
 export async function subjectsget(req, env) {
     const user = await requireAuth(req, env);
@@ -53,83 +54,9 @@ export async function cleanupSubject(subject_id, env) {
         .bind(subject_id)
         .all();
 
-    const unitIds = units.map(u => u.unit_id);
-
-    if (unitIds.length > 0) {
-
-        // ---------- DELETE NOTE FILES ----------
-        const placeholders = unitIds.map(() => "?").join(",");
-
-        const { results: notes } = await env.cldb
-            .prepare(
-                `SELECT file_path FROM notes 
-                 WHERE unit_id IN (${placeholders})`
-            )
-            .bind(...unitIds)
-            .all();
-
-        for (const n of notes) {
-            if (n.file_path) {
-                const key = n.file_path.replace(
-                    "https://media.crescentlearning.org/",
-                    ""
-                );
-                try {
-                    await env.files.delete(key);
-                } catch (e) {
-                    console.error(`Failed to delete note file ${key}:`, e);
-                }
-            }
-        }
-
-        // ---------- DELETE VIDEOS FROM STREAM ----------
-        const { results: videos } = await env.cldb
-            .prepare(
-                `SELECT video_id FROM videos
-                 WHERE unit_id IN (${placeholders})`
-            )
-            .bind(...unitIds)
-            .all();
-
-        for (const v of videos) {
-            if (v.video_id) {
-                try {
-                    await deleteStreamVideo(v.video_id, env);
-                } catch (e) {
-                    console.error(`Failed to delete stream video ${v.video_id}:`, e);
-                }
-            }
-        }
-
-        // ---------- DELETE NOTES ROWS ----------
-        await env.cldb.prepare(
-            `DELETE FROM notes WHERE unit_id IN (${placeholders})`
-        ).bind(...unitIds).run();
-
-        // ---------- DELETE VIDEOS ROWS ----------
-        await env.cldb.prepare(
-            `DELETE FROM videos WHERE unit_id IN (${placeholders})`
-        ).bind(...unitIds).run();
-
-        // ---------- DELETE UNITS IMAGES ----------
-        // We should also delete unit images before deleting unit rows.
-        // It wasn't in original code explicitly, but requirements start "Implement DELETE logic... clean everything".
-        // Let's fetch unit images.
-        const { results: unitsWithImages } = await env.cldb
-            .prepare(`SELECT unit_image FROM units WHERE unit_id IN (${placeholders}) AND unit_image IS NOT NULL`)
-            .bind(...unitIds)
-            .all();
-
-        for (const u of unitsWithImages) {
-            if (u.unit_image) {
-                const uImgId = u.unit_image.split("/").slice(-2, -1)[0];
-                try {
-                    await deleteImage(uImgId, env);
-                } catch (e) {
-                    console.error("Failed to delete unit image", e);
-                }
-            }
-        }
+    // ---------- CLEANUP EACH UNIT ----------
+    for (const u of units) {
+        await cleanupUnit(u.unit_id, env);
     }
 
     // ---------- DELETE UNITS ----------
@@ -157,7 +84,7 @@ export async function subjectsdelete(req, env) {
         return json({ error: "Subject not found" }, 404);
     }
 
-    await deleteFileFromStorage(subjectRow.subject_image, env);
+    await cleanupSubject(id, env);
 
     return json({
         success: true,
