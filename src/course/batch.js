@@ -296,7 +296,7 @@ export async function batchreq(req, env) {
     } else {
         const uid = crypto.randomUUID();
 
-        await env.cldb.prepare("INSERT INTO batch_join_requests (request_id, batch_id, student_id, status, created_at) VALUES (?, ?, ?, ?, ?)").bind(uid, batch.batch_id, user.id, "pending", new Date().toISOString()).run();
+        await env.cldb.prepare("INSERT INTO batch_join_requests (request_id, batch_id, student_id, status, created_at) VALUES (?, ?, ?, ?, ?)").bind(uid, batch.batch_id, user.user_id, "pending", new Date().toISOString()).run();
     }
 
     return json({
