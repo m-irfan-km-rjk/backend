@@ -1,4 +1,5 @@
 import json from "../util/json";
+import { hashPassword } from "../util/hash";
 
 export default async function signup(req, env) {
     const body = await req.json();
