@@ -279,8 +279,8 @@ export async function batchreq(req, env) {
 
     const { course_id, code } = await req.json();
 
-    if (!batch_id || !code) {
-        return json({ error: "batch_id and code required" }, 400);
+    if (!course_id || !code) {
+        return json({ error: "course_id and code required" }, 400);
     }
 
     if (user.role !== "student") {
@@ -292,7 +292,7 @@ export async function batchreq(req, env) {
         .bind(course_id, code)
         .first();
     if (!batch) {
-        return json({ error: "Invalid batch_id or code" }, 404);
+        return json({ error: "Invalid course_id or code" }, 404);
     } else {
         const uid = crypto.randomUUID();
 
