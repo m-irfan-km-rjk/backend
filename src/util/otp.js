@@ -58,7 +58,7 @@ export async function sendOTP(req, env) {
         body: JSON.stringify({
             from: "noreply@crescentlearning.org",
             to: email,
-            subject: "Your OTP Code",
+            subject: "OTP",
             html: `
                 <div style="font-family: sans-serif;">
                     <h2>Your OTP is: ${otp}</h2>

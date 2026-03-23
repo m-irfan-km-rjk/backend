@@ -27,6 +27,7 @@ export default {
 		else if (path === "/profile/image" && method === "PUT") return profileimageput(req, env);
 		else if (path === "/video" && method === "GET") return videoget(req, env);
 		else if (path === "/video" && method === "PUT") return videoput(req, env);
+		else if (path === "/video" && method === "DELETE") return videodelete(req, env);
 		else if (path === "/courses" && method === "GET") return coursesget(req, env);
 		else if (path === "/courses" && method === "POST") return coursespost(req, env);
 		else if (path === "/courses" && method === "DELETE") return coursesdelete(req, env);

@@ -193,3 +193,48 @@ async function createUploadURL(env) {
         }
     )
 }
+
+export async function videodelete(req, env) {
+    // 1. Get the UID from the request (assuming it's a JSON body or URL param)
+    // Adjust this part based on how your frontend sends the ID
+    const { video_id } = await req.json();
+
+    if (!video_id) {
+        return new Response(JSON.stringify({ error: "Missing video UID" }), { status: 400 });
+    }
+
+    try {
+        // 2. Delete from Cloudflare Stream API
+        const cfResponse = await fetch(
+            `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/stream/${video_id}`,
+            {
+                method: "DELETE",
+                headers: {
+                    "Authorization": `Bearer ${env.CF_STREAM_API_TOKEN}`,
+                    "Content-Type": "application/json"
+                }
+            }
+        );
+
+        const data = await cfResponse.json();
+
+        if (!cfResponse.ok || !data.success) {
+            return new Response(
+                JSON.stringify({ error: "Failed to delete from Cloudflare", details: data.errors }),
+                { status: cfResponse.status }
+            );
+        }
+
+        // 3. Delete from your local D1 Database (cldb)
+        await env.cldb.prepare(`
+            DELETE FROM videos 
+            WHERE video_id = ?
+        `).bind(video_id).run();
+
+        return json({ success: true, message: "Video deleted successfully" });
+
+    } catch (err) {
+        console.error("Delete failed:", err);
+        return new Response(JSON.stringify({ error: "Internal Server Error" }), { status: 500 });
+    }
+}
