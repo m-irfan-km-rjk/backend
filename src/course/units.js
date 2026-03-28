@@ -288,7 +288,7 @@ export async function unitsvideosget(req, env) {
                  AND (va.video_id IS NULL OR va.status = 1)
                  ORDER BY v.position ASC`
             )
-            .bind(batch_id, unit_id)
+            .bind(unit_id)
             .all();
 
         return json({ videos });
