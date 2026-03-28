@@ -3,7 +3,7 @@ import signup from "./users/signup";
 import login from "./users/login";
 import json from "./util/json";
 import { profileget, profileput, profileimageput } from "./users/profile";
-import { videoget, videoput } from "./util/video";
+import { videodelete, videoget, videoput } from "./util/video";
 import { coursesget, coursespost, coursesdelete, coursesput } from "./course/course";
 import { coursesbatchpost, coursesbatchget, coursesbatchdelete, coursesbatchput, genbatchcode, deletebatchcode, batchreq, batchreqget, batchreqaccept, deletebatchreq, batchreqreject, batchassignteacher, batchremoveteacher, batchteachersget } from "./course/batch";
 import { adminusersget, updateusers, deleteusers } from "./users/admin";
@@ -25,9 +25,6 @@ export default {
 		else if (path == "/profile" && method == "GET") return profileget(req, env);
 		else if (path == "/profile" && method == "PUT") return profileput(req, env);
 		else if (path === "/profile/image" && method === "PUT") return profileimageput(req, env);
-		else if (path === "/video" && method === "GET") return videoget(req, env);
-		else if (path === "/video" && method === "PUT") return videoput(req, env);
-		else if (path === "/video" && method === "DELETE") return videodelete(req, env);
 		else if (path === "/courses" && method === "GET") return coursesget(req, env);
 		else if (path === "/courses" && method === "POST") return coursespost(req, env);
 		else if (path === "/courses" && method === "DELETE") return coursesdelete(req, env);
@@ -57,13 +54,18 @@ export default {
 		else if (path === "/units/notes" && method === "PUT") return unitsnotesput(req, env);
 		//else if (path === "/unit/videos/update" && method === "POST") return unitsvideoupdate(req, env);
 		else if (path === "/unit/videos" && method === "GET") return unitsvideosget(req, env);
+		else if (path === "/unit/videos" && method === "DELETE") return videodelete(req, env);
+
+		//quiz
+		else if (path === "/unit/quiz/create" && method === "POST") return quizcreate(req, env);
+		else if (path === "/unit/quiz/delete" && method === "DELETE") return quizdelete(req, env);
+
 		else if (path === "/subjects" && method === "GET") return subjectsget(req, env);
 		else if (path === "/subjects" && method === "DELETE") return subjectsdelete(req, env);
 		else if (path === "/subjects" && method === "POST") return subjectspost(req, env);
 		else if (path === "/subjects" && method === "PUT") return subjectsput(req, env)
 
 		else if (path === "/stream/webhook" && method === "POST") return streamWebhook(req, env);
-		else if (path === "/upload/image" && method === "PUT") return uploadImage(req, env);
 		else if (path === "/admin/users" && method === "GET") return adminusersget(req, env);
 		else if (path === "/admin/users" && method === "PUT") return updateusers(req, env);
 		else if (path === "/admin/users" && method === "DELETE") return deleteusers(req, env);
