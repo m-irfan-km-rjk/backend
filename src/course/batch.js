@@ -314,25 +314,45 @@ export async function batchreqget(req, env) {
     }
 
     const { batch_id } = await req.json();
-    var requests;
+    let requests;
 
     if (!batch_id) {
-        requests = await env.cldb.prepare("SELECT * FROM batch_join_requests").all();
+        requests = await env.cldb.prepare(`
+            SELECT 
+                r.*, 
+                u.name, 
+                u.email, 
+                u.image
+            FROM batch_join_requests r
+            JOIN users u 
+            ON r.student_id = u.user_id
+        `).all();
     } else {
         const batch = await env.cldb
             .prepare("SELECT * FROM batch WHERE batch_id = ?")
             .bind(batch_id)
             .first();
+
         if (!batch) {
             return json({ error: "Invalid batch_id" }, 404);
-        } else {
-            requests = await env.cldb.prepare("SELECT * FROM batch_join_requests WHERE batch_id = ?").bind(batch_id).all();
         }
+
+        requests = await env.cldb.prepare(`
+            SELECT 
+                r.*, 
+                u.name, 
+                u.email, 
+                u.image
+            FROM batch_join_requests r
+            JOIN users u 
+            ON r.student_id = u.user_id
+            WHERE r.batch_id = ?
+        `).bind(batch_id).all();
     }
 
     return json({
         success: true,
-        requests: requests
+        requests: requests.results // ⚠️ important for D1
     });
 }
 
