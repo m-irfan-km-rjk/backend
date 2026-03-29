@@ -48,10 +48,10 @@ export default {
 		else if (path === "/units" && method === "DELETE") return unitsdelete(req, env);
 		else if (path === "/units" && method === "POST") return unitspost(req, env);
 		else if (path === "/units" && method === "PUT") return unitsput(req, env);
-		else if (path === "/units/notes" && method === "GET") return unitsnotesget(req, env);
-		else if (path === "/units/notes" && method === "POST") return unitsnotespost(req, env);
-		else if (path === "/units/notes" && method === "DELETE") return unitsnotesdelete(req, env);
-		else if (path === "/units/notes" && method === "PUT") return unitsnotesput(req, env);
+		else if (path === "/unit/notes" && method === "GET") return unitsnotesget(req, env);
+		else if (path === "/unit/notes" && method === "POST") return unitsnotespost(req, env);
+		else if (path === "/unit/notes" && method === "DELETE") return unitsnotesdelete(req, env);
+		else if (path === "/unit/notes" && method === "PUT") return unitsnotesput(req, env);
 		//else if (path === "/unit/videos/update" && method === "POST") return unitsvideoupdate(req, env);
 		else if (path === "/unit/videos" && method === "GET") return unitsvideosget(req, env);
 		else if (path === "/unit/videos" && method === "DELETE") return videodelete(req, env);
