@@ -54,15 +54,15 @@ export async function quizcreate(req, env) {
             ).run();
         }
 
-        return new Response(JSON.stringify({
+        return json({
             success: true,
             exam_id
-        }), { status: 201 });
+        }, 201);
 
     } catch (err) {
-        return new Response(JSON.stringify({
+        return json({
             error: err.message
-        }), { status: 500 });
+        }, 500);
     }
 }
 

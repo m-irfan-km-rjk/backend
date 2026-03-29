@@ -3,14 +3,15 @@ import signup from "./users/signup";
 import login from "./users/login";
 import json from "./util/json";
 import { profileget, profileput, profileimageput } from "./users/profile";
-import { videodelete } from "./util/video";
+import { videodelete, videoput } from "./util/video";
 import { coursesget, coursespost, coursesdelete, coursesput } from "./course/course";
 import { coursesbatchpost, coursesbatchget, coursesbatchdelete, coursesbatchput, genbatchcode, deletebatchcode, batchreq, batchreqget, batchreqaccept, deletebatchreq, batchreqreject, batchassignteacher, batchremoveteacher, batchteachersget } from "./course/batch";
 import { adminusersget, updateusers, deleteusers } from "./users/admin";
 import { unitsget, unitsdelete, unitspost, unitsput, unitsvideosget, unitsnotesget, unitsnotespost, unitsnotesdelete, unitsnotesput } from "./course/units";
 import { subjectsget, subjectsdelete, subjectspost, subjectsput } from "./course/subjects";
-import { getVideoUploadLink, uploadImage } from "./util/upload";
+import { getVideoUploadLink } from "./util/upload";
 import { streamWebhook } from "./util/video";
+import { quizcreate, quizimageupload } from "./util/quiz";
 import { sendOTP, verifyOTP } from "./util/otp";
 
 export default {
