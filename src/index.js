@@ -3,7 +3,7 @@ import signup from "./users/signup";
 import login from "./users/login";
 import json from "./util/json";
 import { profileget, profileput, profileimageput } from "./users/profile";
-import { videodelete, videoget, videoput } from "./util/video";
+import { videodelete } from "./util/video";
 import { coursesget, coursespost, coursesdelete, coursesput } from "./course/course";
 import { coursesbatchpost, coursesbatchget, coursesbatchdelete, coursesbatchput, genbatchcode, deletebatchcode, batchreq, batchreqget, batchreqaccept, deletebatchreq, batchreqreject, batchassignteacher, batchremoveteacher, batchteachersget } from "./course/batch";
 import { adminusersget, updateusers, deleteusers } from "./users/admin";
