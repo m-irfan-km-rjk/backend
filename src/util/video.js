@@ -186,8 +186,6 @@ async function createUploadURL(env) {
 }
 
 export async function videodelete(req, env) {
-    // 1. Get the UID from the request (assuming it's a JSON body or URL param)
-    // Adjust this part based on how your frontend sends the ID
     const { video_id } = await req.json();
 
     if (!video_id) {
@@ -195,7 +193,6 @@ export async function videodelete(req, env) {
     }
 
     try {
-        // 2. Delete from Cloudflare Stream API
         const cfResponse = await fetch(
             `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/stream/${video_id}`,
             {
@@ -207,25 +204,41 @@ export async function videodelete(req, env) {
             }
         );
 
-        const data = await cfResponse.json();
+        // 🔥 SAFE JSON PARSE
+        let data = {};
+        try {
+            const text = await cfResponse.text();
+            data = text ? JSON.parse(text) : {};
+        } catch {
+            data = {};
+        }
 
-        if (!cfResponse.ok || !data.success) {
+        if (!cfResponse.ok || (data.success === false)) {
             return new Response(
-                JSON.stringify({ error: "Failed to delete from Cloudflare", details: data.errors }),
+                JSON.stringify({
+                    error: "Failed to delete from Cloudflare",
+                    details: data.errors || "No error details"
+                }),
                 { status: cfResponse.status }
             );
         }
 
-        // 3. Delete from your local D1 Database (cldb)
+        // Delete from DB
         await env.cldb.prepare(`
             DELETE FROM videos 
             WHERE video_id = ?
         `).bind(video_id).run();
 
-        return json({ success: true, message: "Video deleted successfully" });
+        return new Response(JSON.stringify({
+            success: true,
+            message: "Video deleted successfully"
+        }), { status: 200 });
 
     } catch (err) {
         console.error("Delete failed:", err);
-        return new Response(JSON.stringify({ error: "Internal Server Error" }), { status: 500 });
+        return new Response(
+            JSON.stringify({ error: "Internal Server Error: " + err.message }),
+            { status: 500 }
+        );
     }
 }
