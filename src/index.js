@@ -7,7 +7,7 @@ import { videodelete } from "./util/video";
 import { coursesget, coursespost, coursesdelete, coursesput } from "./course/course";
 import { coursesbatchpost, coursesbatchget, coursesbatchdelete, coursesbatchput, genbatchcode, deletebatchcode, batchreq, batchreqget, batchreqaccept, deletebatchreq, batchreqreject, batchassignteacher, batchremoveteacher, batchteachersget } from "./course/batch";
 import { adminusersget, updateusers, deleteusers } from "./users/admin";
-import { unitsget, unitsdelete, unitspost, unitsput, unitsvideoupdate, unitsvideosget, unitsnotesget, unitsnotespost, unitsnotesdelete, unitsnotesput } from "./course/units";
+import { unitsget, unitsdelete, unitspost, unitsput, unitsvideosget, unitsnotesget, unitsnotespost, unitsnotesdelete, unitsnotesput } from "./course/units";
 import { subjectsget, subjectsdelete, subjectspost, subjectsput } from "./course/subjects";
 import { getVideoUploadLink, uploadImage } from "./util/upload";
 import { streamWebhook } from "./util/video";
@@ -55,6 +55,7 @@ export default {
 		//else if (path === "/unit/videos/update" && method === "POST") return unitsvideoupdate(req, env);
 		else if (path === "/unit/videos" && method === "GET") return unitsvideosget(req, env);
 		else if (path === "/unit/videos" && method === "DELETE") return videodelete(req, env);
+		else if (path === "/unit/videos" && method === "PUT") return videoput(req, env);
 
 		//quiz
 		else if (path === "/unit/quiz/create" && method === "POST") return quizcreate(req, env);

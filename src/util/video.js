@@ -1,15 +1,5 @@
 import json from "./json";
 
-export async function videoput(req, env) {
-    const key = "courses/subjects/units/videos/song.mp4";
-    const signedUrl = await env.files.createSignedUrl(
-        key,
-        60 * 60 // 1 hour
-    );
-    return json({ url: signedUrl });
-}
-
-
 export async function streamWebhook(req, env) {
     if (req.method !== "POST") {
         return new Response("OK", { status: 200 });
@@ -241,4 +231,57 @@ export async function videodelete(req, env) {
             { status: 500 }
         );
     }
+}
+
+export async function videoput(req, env) {
+    const { video_id, title, desc } = await req.json();
+
+    if (!video_id) {
+        return json({ error: "Missing video_id" }, 400);
+    }
+
+    // Check if video exists
+    const vidrow = await env.cldb
+        .prepare(`SELECT video_id FROM videos WHERE video_id = ?`)
+        .bind(video_id)
+        .first();
+
+    if (!vidrow) {
+        return json({ error: "Video not found" }, 404);
+    }
+
+    // Build dynamic update
+    const updates = [];
+    const values = [];
+
+    if (title !== undefined) {
+        updates.push("title = ?");
+        values.push(title);
+    }
+
+    if (desc !== undefined) {
+        updates.push("description = ?");
+        values.push(desc);
+    }
+
+    // ❗ Nothing to update
+    if (updates.length === 0) {
+        return json({ error: "No fields to update" }, 400);
+    }
+
+    // Final query
+    const query = `
+        UPDATE videos
+        SET ${updates.join(", ")}
+        WHERE video_id = ?
+    `;
+
+    values.push(video_id);
+
+    await env.cldb.prepare(query).bind(...values).run();
+
+    return json({
+        success: true,
+        message: "Video updated successfully"
+    });
 }

@@ -241,33 +241,6 @@ export async function unitsput(req, env) {
     }
 }
 
-
-//Remove this if unnecessary
-export async function unitsvideoupdate(req, env) {
-    try {
-        const user = await requireAuth(req, env);
-        if (!user) return json({ error: "Unauthorized" }, 401);
-
-        const { unit_id, video_id, title, description } = await req.json();
-
-        await env.cldb.prepare(
-            `INSERT INTO videos 
-             (unit_id, title, video_id, description, created_at)
-             VALUES (?, ?, ?, ?, ?)`
-        ).bind(
-            unit_id,
-            title,
-            video_id,
-            description,
-            new Date().toISOString()
-        ).run();
-
-        return json({ success: true, message: "Video updated successfully" });
-    } catch (error) {
-        return json({ error: error.message || error }, 500);
-    }
-}
-
 export async function unitsvideosget(req, env) {
     try {
         const user = await requireAuth(req, env);
