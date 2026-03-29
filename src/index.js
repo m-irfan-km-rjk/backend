@@ -59,8 +59,8 @@ export default {
 		else if (path === "/unit/videos" && method === "PUT") return videoput(req, env);
 
 		//quiz
-		else if (path === "/unit/quiz/create" && method === "POST") return quizcreate(req, env);
-		else if (path === "/unit/quiz/delete" && method === "DELETE") return quizdelete(req, env);
+		else if (path === "exam" && method === "POST") return quizcreate(req, env);
+		//else if (path === "exam" && method === "DELETE") return quizdelete(req, env);
 
 		else if (path === "/subjects" && method === "GET") return subjectsget(req, env);
 		else if (path === "/subjects" && method === "DELETE") return subjectsdelete(req, env);
