@@ -277,7 +277,14 @@ export async function batchreq(req, env) {
     const user = await requireAuth(req, env);
     if (!user) return json({ error: "Unauthorized" }, 401);
 
-    const { course_id, code } = await req.json();
+    let body;
+    try {
+        body = await req.json();
+    } catch {
+        return json({ error: "Invalid JSON body" }, 400);
+    }
+
+    const { course_id, code } = body;
 
     if (!course_id || !code) {
         return json({ error: "course_id and code required" }, 400);
@@ -291,13 +298,28 @@ export async function batchreq(req, env) {
         .prepare("SELECT * FROM batch WHERE course_id = ? AND code = ?")
         .bind(course_id, code)
         .first();
+
     if (!batch) {
         return json({ error: "Invalid course_id or code" }, 404);
-    } else {
-        const uid = crypto.randomUUID();
-
-        await env.cldb.prepare("INSERT INTO batch_join_requests (request_id, batch_id, student_id, status, created_at) VALUES (?, ?, ?, ?, ?)").bind(uid, batch.batch_id, user.user_id, "pending", new Date().toISOString()).run();
     }
+
+    // 🔥 Check if already requested
+    const existing = await env.cldb
+        .prepare("SELECT 1 FROM batch_join_requests WHERE batch_id = ? AND student_id = ?")
+        .bind(batch.batch_id, user.user_id)
+        .first();
+
+    if (existing) {
+        return json({ error: "You have already requested to join this batch" }, 400);
+    }
+
+    const uid = crypto.randomUUID();
+
+    await env.cldb.prepare(
+        "INSERT INTO batch_join_requests (request_id, batch_id, student_id, status, created_at) VALUES (?, ?, ?, ?, ?)"
+    )
+        .bind(uid, batch.batch_id, user.user_id, "pending", new Date().toISOString())
+        .run();
 
     return json({
         success: true,
@@ -309,7 +331,7 @@ export async function batchreqget(req, env) {
     const user = await requireAuth(req, env);
     if (!user) return json({ error: "Unauthorized" }, 401);
 
-    if (user.role !== "admin") {
+    if (user.role != "admin") {
         return json({ error: "Only admins can get batch requests" }, 403);
     }
 

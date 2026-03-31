@@ -5,7 +5,7 @@ import json from "./util/json";
 import { profileget, profileput, profileimageput } from "./users/profile";
 import { videodelete, videoput } from "./util/video";
 import { coursesget, coursespost, coursesdelete, coursesput } from "./course/course";
-import { coursesbatchpost, coursesbatchget, coursesbatchdelete, coursesbatchput, genbatchcode, deletebatchcode, batchreq, batchreqget, batchreqaccept, deletebatchreq, batchreqreject, batchassignteacher, batchremoveteacher, batchteachersget } from "./course/batch";
+import { coursesbatchpost, coursesbatchget, coursesbatchdelete, coursesbatchput, genbatchcode, deletebatchcode, batchreq, batchreqget, batchreqaccept, deletebatchreq, batchreqreject, batchassignteacher, batchremoveteacher, batchteachersget, batchstudentsget, batchstudentsremove } from "./course/batch";
 import { adminusersget, updateusers, deleteusers } from "./users/admin";
 import { unitsget, unitsdelete, unitspost, unitsput, unitsvideosget, unitsnotesget, unitsnotespost, unitsnotesdelete, unitsnotesput } from "./course/units";
 import { subjectsget, subjectsdelete, subjectspost, subjectsput } from "./course/subjects";
@@ -41,12 +41,15 @@ export default {
 		else if (path === "/courses/batch/request/accept" && method === "POST") return batchreqaccept(req, env);
 		else if (path === "/courses/batch/request/reject" && method === "POST") return batchreqreject(req, env);
 		else if (path === "/courses/batch/request/delete" && method === "DELETE") return deletebatchreq(req, env);
+
+		else if (path === "/courses/batch/students" && method === "GET") return batchstudentsget(req, env);
+		else if (path === "/courses/batch/students" && method === "DELETE") return batchstudentsremove(req, env);
 		else if (path === "/courses/batch/teacher" && method === "POST") return batchassignteacher(req, env);
 		else if (path === "/courses/batch/teacher" && method === "DELETE") return batchremoveteacher(req, env);
 		else if (path === "/courses/batch/teacher" && method === "GET") return batchteachersget(req, env);
 
 		else if (path === "/units" && method === "GET") return unitsget(req, env);
-		else if (path === "/units" && method === "DELETE") return unitsdelete(req, env); 
+		else if (path === "/units" && method === "DELETE") return unitsdelete(req, env);
 		else if (path === "/units" && method === "POST") return unitspost(req, env);
 		else if (path === "/units" && method === "PUT") return unitsput(req, env);
 		else if (path === "/unit/notes" && method === "GET") return unitsnotesget(req, env);
