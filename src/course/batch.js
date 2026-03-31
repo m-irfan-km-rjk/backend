@@ -283,7 +283,7 @@ export async function batchreq(req, env) {
         return json({ error: "course_id and code required" }, 400);
     }
 
-    if (user.role !== "student") {
+    if (user.role != "student") {
         return json({ error: "Only students can join batches" }, 403);
     }
 
@@ -362,7 +362,7 @@ export async function batchreqaccept(req, env) {
         const user = await requireAuth(req, env);
         if (!user) return json({ error: "Unauthorized" }, 401);
 
-        if (user.role !== "admin") {
+        if (user.role != "admin") {
             return json(
                 { error: "Only admins can accept batch requests" },
                 403
