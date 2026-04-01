@@ -11,7 +11,7 @@ import { unitsget, unitsdelete, unitspost, unitsput, unitsvideosget, unitsnotesg
 import { subjectsget, subjectsdelete, subjectspost, subjectsput } from "./course/subjects";
 import { getVideoUploadLink } from "./util/upload";
 import { streamWebhook } from "./util/video";
-import { quizcreate, quizimageupload } from "./util/quiz";
+import { quizcreate, quizget, quizgetall, quizdelete, quizupdate, quizimageupload, quizimagedelete } from "./util/quiz";
 import { sendOTP, verifyOTP } from "./util/otp";
 
 export default {
@@ -63,7 +63,12 @@ export default {
 
 		//quiz
 		else if (path === "/exam" && method === "POST") return quizcreate(req, env);
-		//else if (path === "exam" && method === "DELETE") return quizdelete(req, env);
+		else if (path === "/exam" && method === "GET") return quizget(req, env);
+		else if (path === "/exam" && method === "DELETE") return quizdelete(req, env);
+		else if (path === "/exam" && method === "PUT") return quizupdate(req, env);
+		else if (path === "/exam/image" && method === "POST") return quizimageupload(req, env);
+		else if (path === "/exam/image" && method === "DELETE") return quizimagedelete(req, env);
+		else if (path === "/exam/all" && method === "GET") return quizgetall(req, env);
 
 		else if (path === "/subjects" && method === "GET") return subjectsget(req, env);
 		else if (path === "/subjects" && method === "DELETE") return subjectsdelete(req, env);
