@@ -817,7 +817,7 @@ export async function batchstudentsget(req, env) {
                     u.name,
                     u.email,
                     u.phone,
-                    u.profile_image,
+                    u.image,
                     bs.joined_at
                 FROM batch_students bs
                 JOIN users u ON bs.student_id = u.user_id
