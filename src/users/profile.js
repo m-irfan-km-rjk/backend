@@ -48,15 +48,22 @@ export async function profileget(req, env) {
         ORDER BY b.batch_id, s.subject_id, u.unit_id;
     `).bind(user_id).all();
 
+    const unitIds = [...new Set(structure.results.map(r => r.unit_id).filter(Boolean))];
+    const subjectIds = [...new Set(structure.results.map(r => r.subject_id).filter(Boolean))];
+
+    const pUid = unitIds.map(() => "?").join(",");
+
     // 3️⃣ Videos
     const videos = await env.cldb.prepare(`
-        SELECT video_id, unit_id, title, video_url FROM videos
-    `).all();
+        SELECT video_id, unit_id, title, video_url 
+        FROM videos 
+        WHERE unit_id IN (${pUid})
+    `).bind(...unitIds).all();
 
     // 4️⃣ Notes
     const notes = await env.cldb.prepare(`
-        SELECT note_id, unit_id, title, file_path FROM notes
-    `).all();
+        SELECT note_id, unit_id, title, file_path FROM notes WHERE unit_id IN (${pUid})
+    `).bind(...unitIds).all();
 
     // Exams
     const exams = await env.cldb.prepare(`
@@ -98,7 +105,7 @@ export async function profileget(req, env) {
             if (!examUnitMap[e.unit_id]) examUnitMap[e.unit_id] = [];
             examUnitMap[e.unit_id].push(examItem);
         }
-        
+
         if (e.subject_id) {
             if (!examSubjectMap[e.subject_id]) examSubjectMap[e.subject_id] = [];
             examSubjectMap[e.subject_id].push(examItem);
