@@ -286,10 +286,7 @@ export async function coursesput(req, env) {
         const user = await requireAuth(req, env);
         if (!user) return json({ error: "Unauthorized" }, 401);
 
-        const body = await req.json();
-
-        const {
-            course_id,
+        let course_id,
             title,
             description,
             course_image,
@@ -301,16 +298,94 @@ export async function coursesput(req, env) {
             batch_start_date,
             enrollment_end_date,
             currency,
+            highlights,
+            languages;
 
-            highlights,   // optional array
-            languages     // optional array
-        } = body;
+        const contentType = req.headers.get("Content-Type") || "";
+
+        // 🔵 MULTIPART (image upload)
+        if (contentType.includes("multipart/form-data")) {
+            const formData = await req.formData();
+
+            course_id = formData.get("course_id");
+            title = formData.get("title");
+            description = formData.get("description");
+            subtitle = formData.get("subtitle");
+            language_tag = formData.get("language_tag");
+            category_tag = formData.get("category_tag");
+
+            duration = formData.get("duration") ? Number(formData.get("duration")) : undefined;
+            price = formData.get("price") ? Number(formData.get("price")) : undefined;
+            batch_start_date = formData.get("batch_start_date");
+            enrollment_end_date = formData.get("enrollment_end_date");
+            currency = formData.get("currency");
+
+            // arrays
+            try {
+                highlights = JSON.parse(formData.get("highlights"));
+            } catch {
+                highlights = undefined;
+            }
+
+            try {
+                languages = JSON.parse(formData.get("languages"));
+            } catch {
+                languages = undefined;
+            }
+
+            // 🔴 get existing course (needed for image update)
+            const existing = await env.cldb.prepare(
+                "SELECT * FROM courses WHERE course_id = ?"
+            ).bind(course_id).first();
+
+            if (!existing) {
+                return json({ error: "Course not found" }, 404);
+            }
+
+            const file = formData.get("course_image");
+
+            if (file instanceof File) {
+                // 🔥 update existing image
+                const imageId = existing.course_image?.split("/").slice(-2, -1)[0];
+
+                if (imageId) {
+                    const updated = await updateImage(file, imageId, env);
+                    course_image = updated.imageUrl;
+                } else {
+                    const uploaded = await uploadImage(file, env);
+                    course_image = uploaded.result.variants[0];
+                }
+            } else {
+                course_image = existing.course_image;
+            }
+
+        } else {
+            // 🟢 JSON
+            const body = await req.json();
+
+            ({
+                course_id,
+                title,
+                description,
+                course_image,
+                subtitle,
+                language_tag,
+                category_tag,
+                duration,
+                price,
+                batch_start_date,
+                enrollment_end_date,
+                currency,
+                highlights,
+                languages
+            } = body);
+        }
 
         if (!course_id) {
             return json({ error: "course_id is required" }, 400);
         }
 
-        // 🔴 Check if course exists
+        // 🔴 Fetch existing (for partial updates)
         const existing = await env.cldb.prepare(
             "SELECT * FROM courses WHERE course_id = ?"
         ).bind(course_id).first();
@@ -319,8 +394,7 @@ export async function coursesput(req, env) {
             return json({ error: "Course not found" }, 404);
         }
 
-        // 🧠 Use existing values if not provided
-        const updatedCourse = {
+        const updated = {
             title: title ?? existing.title,
             description: description ?? existing.description,
             course_image: course_image ?? existing.course_image,
@@ -334,7 +408,7 @@ export async function coursesput(req, env) {
             currency: currency ?? existing.currency
         };
 
-        // 🚀 TRANSACTION (critical)
+        // 🚀 TRANSACTION
         const tx = env.cldb.transaction(async (txn) => {
 
             // 1️⃣ Update course
@@ -346,29 +420,26 @@ export async function coursesput(req, env) {
                     batch_start_date = ?, enrollment_end_date = ?, currency = ?
                 WHERE course_id = ?
             `).bind(
-                updatedCourse.title,
-                updatedCourse.description,
-                updatedCourse.course_image,
-                updatedCourse.subtitle,
-                updatedCourse.language_tag,
-                updatedCourse.category_tag,
-                updatedCourse.duration,
-                updatedCourse.price,
-                updatedCourse.batch_start_date,
-                updatedCourse.enrollment_end_date,
-                updatedCourse.currency,
+                updated.title,
+                updated.description,
+                updated.course_image,
+                updated.subtitle,
+                updated.language_tag,
+                updated.category_tag,
+                updated.duration,
+                updated.price,
+                updated.batch_start_date,
+                updated.enrollment_end_date,
+                updated.currency,
                 course_id
             ).run();
 
-            // 2️⃣ Update highlights (ONLY if provided)
+            // 2️⃣ Highlights
             if (Array.isArray(highlights)) {
-
-                // delete old
                 await txn.prepare(
                     "DELETE FROM course_highlights WHERE course_id = ?"
                 ).bind(course_id).run();
 
-                // insert new
                 if (highlights.length > 0) {
                     const stmt = txn.prepare(`
                         INSERT INTO course_highlights (id, course_id, highlight)
@@ -385,15 +456,12 @@ export async function coursesput(req, env) {
                 }
             }
 
-            // 3️⃣ Update languages (ONLY if provided)
+            // 3️⃣ Languages
             if (Array.isArray(languages)) {
-
-                // delete old
                 await txn.prepare(
                     "DELETE FROM course_languages WHERE course_id = ?"
                 ).bind(course_id).run();
 
-                // insert new
                 if (languages.length > 0) {
                     const stmt = txn.prepare(`
                         INSERT INTO course_languages (id, course_id, language)
@@ -411,7 +479,7 @@ export async function coursesput(req, env) {
             }
         });
 
-        await tx(); // execute transaction
+        await tx();
 
         return json({
             success: true,
