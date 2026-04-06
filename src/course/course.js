@@ -79,28 +79,78 @@ export async function coursespost(req, env) {
         const user = await requireAuth(req, env);
         if (!user) return json({ error: "Unauthorized" }, 401);
 
-        const body = await req.json();
-
-        const {
-            title = null,
+        let title = null,
             description = null,
             course_image = null,
             subtitle = null,
             language_tag = null,
             category_tag = null,
-
             duration,
             price,
             batch_start_date,
             enrollment_end_date = null,
             currency = "INR",
+            highlights = [],
+            languages = [];
 
-            highlights = [],   // array
-            languages = []     // array
-        } = body;
+        const contentType = req.headers.get("Content-Type") || "";
+
+        // 🟢 Handle multipart (image upload)
+        if (contentType.includes("multipart/form-data")) {
+            const formData = await req.formData();
+
+            title = formData.get("title");
+            description = formData.get("description");
+            subtitle = formData.get("subtitle");
+            language_tag = formData.get("language_tag");
+            category_tag = formData.get("category_tag");
+
+            duration = Number(formData.get("duration"));
+            price = Number(formData.get("price"));
+            batch_start_date = formData.get("batch_start_date");
+            enrollment_end_date = formData.get("enrollment_end_date");
+            currency = formData.get("currency") || "INR";
+
+            // 🔥 arrays (sent as JSON string from frontend)
+            try {
+                highlights = JSON.parse(formData.get("highlights") || "[]");
+                languages = JSON.parse(formData.get("languages") || "[]");
+            } catch {
+                highlights = [];
+                languages = [];
+            }
+
+            // 🖼️ image upload
+            const file = formData.get("course_image");
+
+            if (file instanceof File) {
+                const uploaded = await uploadImage(file, env);
+                course_image = uploaded.result.variants[0];
+            }
+
+        } else {
+            // 🔵 JSON fallback
+            const body = await req.json();
+
+            ({
+                title = null,
+                description = null,
+                course_image = null,
+                subtitle = null,
+                language_tag = null,
+                category_tag = null,
+                duration,
+                price,
+                batch_start_date,
+                enrollment_end_date = null,
+                currency = "INR",
+                highlights =[],
+                languages =[]
+            } = body);
+        }
 
         // 🔴 Required validations
-        if (!price || !duration || !batch_start_date) {
+        if (price == null || duration == null || !batch_start_date) {
             return json({
                 error: "price, duration, batch_start_date are required"
             }, 400);
@@ -109,61 +159,67 @@ export async function coursespost(req, env) {
         const course_id = crypto.randomUUID();
         const created_at = new Date().toISOString();
 
-        // 1️⃣ Insert course
-        await env.cldb.prepare(`
-            INSERT INTO courses (
-                course_id, title, description, course_image,
-                created_at, duration, price, subtitle,
-                language_tag, category_tag,
-                batch_start_date, enrollment_end_date, currency
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(
-            course_id,
-            title,
-            description,
-            course_image,
-            created_at,
-            duration,
-            price,
-            subtitle,
-            language_tag,
-            category_tag,
-            batch_start_date,
-            enrollment_end_date,
-            currency
-        ).run();
+        // 🚀 TRANSACTION (important)
+        const tx = env.cldb.transaction(async (txn) => {
 
-        // 2️⃣ Insert highlights (if any)
-        if (Array.isArray(highlights) && highlights.length > 0) {
-            const stmt = env.cldb.prepare(`
-                INSERT INTO course_highlights (id, course_id, highlight)
-                VALUES (?, ?, ?)
-            `);
+            // 1️⃣ Insert course
+            await txn.prepare(`
+                INSERT INTO courses (
+                    course_id, title, description, course_image,
+                    created_at, duration, price, subtitle,
+                    language_tag, category_tag,
+                    batch_start_date, enrollment_end_date, currency
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(
+                course_id,
+                title,
+                description,
+                course_image,
+                created_at,
+                duration,
+                price,
+                subtitle,
+                language_tag,
+                category_tag,
+                batch_start_date,
+                enrollment_end_date,
+                currency
+            ).run();
 
-            for (const h of highlights) {
-                await stmt.bind(
-                    crypto.randomUUID(),
-                    course_id,
-                    h
-                ).run();
+            // 2️⃣ Highlights
+            if (Array.isArray(highlights) && highlights.length > 0) {
+                const stmt = txn.prepare(`
+                    INSERT INTO course_highlights (id, course_id, highlight)
+                    VALUES (?, ?, ?)
+                `);
+
+                for (const h of highlights) {
+                    await stmt.bind(
+                        crypto.randomUUID(),
+                        course_id,
+                        h
+                    ).run();
+                }
             }
-        }
 
-        // 3️⃣ Insert languages (if any)
-        if (Array.isArray(languages) && languages.length > 0) {
-            const stmt = env.cldb.prepare(`
-                INSERT INTO course_languages (id, course_id, language)
-                VALUES (?, ?, ?)
-            `);
+            // 3️⃣ Languages
+            if (Array.isArray(languages) && languages.length > 0) {
+                const stmt = txn.prepare(`
+                    INSERT INTO course_languages (id, course_id, language)
+                    VALUES (?, ?, ?)
+                `);
 
-            for (const l of languages) {
-                await stmt.bind(
-                    crypto.randomUUID(),
-                    course_id,
-                    l
-                ).run();
+                for (const l of languages) {
+                    await stmt.bind(
+                        crypto.randomUUID(),
+                        course_id,
+                        l
+                    ).run();
+                }
             }
-        }
+        });
+
+        await tx();
 
         return json({
             success: true,
