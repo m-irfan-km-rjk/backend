@@ -1,4 +1,3 @@
-import { requireAuth } from "../users/auth";
 import json from "./json";
 
 // 🔐 Generate OTP
@@ -18,8 +17,6 @@ async function hashOTP(otp) {
 }
 
 export async function sendOTP(req, env) {
-    const user = await requireAuth(req, env);
-    if (!user) return json({ error: "Unauthorized" }, 401);
 
     const { email } = await req.json();
     if (!email) return json({ error: "Email required" }, 400);
