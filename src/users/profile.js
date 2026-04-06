@@ -2,6 +2,7 @@ import json from "../util/json";
 import { requireAuth } from "./auth";
 
 import { uploadFileToStorage } from "../util/upload";
+import { describe } from "vitest";
 
 export async function profileget(req, env) {
     const user = await requireAuth(req, env);
@@ -55,7 +56,7 @@ export async function profileget(req, env) {
 
     // 3️⃣ Videos
     const videos = await env.cldb.prepare(`
-        SELECT video_id, unit_id, title, video_url 
+        SELECT video_id, unit_id, title, video_url, thumbnail_url, description
         FROM videos 
         WHERE unit_id IN (${pUid})
     `).bind(...unitIds).all();
@@ -77,7 +78,9 @@ export async function profileget(req, env) {
         videoMap[v.unit_id].push({
             video_id: v.video_id,
             title: v.title,
-            url: v.video_url
+            url: v.video_url,
+            thumbnail_url: v.thumbnail_url,
+            description: v.description
         });
     }
 
