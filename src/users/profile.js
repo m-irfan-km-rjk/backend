@@ -58,6 +58,11 @@ export async function profileget(req, env) {
         SELECT note_id, unit_id, title, file_path FROM notes
     `).all();
 
+    // Exams
+    const exams = await env.cldb.prepare(`
+        SELECT id, unit_id, subject_id, title, description, no_of_questions FROM exams
+    `).all();
+
     // 5️⃣ Maps
     const videoMap = {};
     for (const v of videos.results) {
@@ -77,6 +82,27 @@ export async function profileget(req, env) {
             title: n.title,
             file_path: n.file_path
         });
+    }
+
+    const examUnitMap = {};
+    const examSubjectMap = {};
+    for (const e of exams.results) {
+        const examItem = {
+            id: e.id,
+            title: e.title,
+            description: e.description,
+            no_of_questions: e.no_of_questions
+        };
+
+        if (e.unit_id) {
+            if (!examUnitMap[e.unit_id]) examUnitMap[e.unit_id] = [];
+            examUnitMap[e.unit_id].push(examItem);
+        }
+        
+        if (e.subject_id) {
+            if (!examSubjectMap[e.subject_id]) examSubjectMap[e.subject_id] = [];
+            examSubjectMap[e.subject_id].push(examItem);
+        }
     }
 
     // 6️⃣ Build batches
@@ -110,6 +136,7 @@ export async function profileget(req, env) {
                     subject_id: row.subject_id,
                     title: row.subject_title,
                     subject_image: row.subject_image,
+                    exams: examSubjectMap[row.subject_id] || [],
                     units: {}
                 };
             }
@@ -124,7 +151,8 @@ export async function profileget(req, env) {
                         title: row.unit_title,
                         unit_image: row.unit_image,
                         videos: videoMap[row.unit_id] || [],
-                        notes: noteMap[row.unit_id] || []
+                        notes: noteMap[row.unit_id] || [],
+                        exams: examUnitMap[row.unit_id] || []
                     };
                 }
             }

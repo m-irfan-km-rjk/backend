@@ -439,11 +439,7 @@ export async function unitsnotesput(req, env) {
         const user = await requireAuth(req, env);
         if (!user) return json({ error: "Unauthorized" }, 401);
 
-        const formData = await req.formData();
-
-        const note_id = formData.get("note_id");
-        const title = formData.get("title"); // optional
-        const file = formData.get("file");   // optional
+        const { note_id, title } = await req.json();
 
         if (!note_id) {
             return json({ error: "note_id required" }, 400);
@@ -458,65 +454,18 @@ export async function unitsnotesput(req, env) {
         if (!existing) {
             return json({ error: "Note not found" }, 404);
         }
-
-        // Start with existing values
-        let newTitle = title || existing.title;
-        let file_path = existing.file_path;
-        let mime_type = existing.mime_type;
-        let file_size = existing.file_size;
-
-        // If new file provided → replace file
-        if (file && file instanceof File) {
-
-            // delete old file (optional but recommended)
-            if (existing.file_path) {
-                const oldKey = existing.file_path.replace(
-                    "https://media.crescentlearning.org/",
-                    ""
-                );
-                await env.files.delete(oldKey);
-            }
-
-            const safeTitle = newTitle.replace(/[^a-zA-Z0-9-_]/g, "_");
-
-            const ext = file.name.includes(".")
-                ? file.name.split(".").pop()
-                : "";
-
-            const newKey =
-                `notes/${note_id}_${Date.now()}${ext ? "." + ext : ""}`;
-
-            mime_type = file.type || "application/octet-stream";
-            file_size = file.size;
-
-            await env.files.put(
-                newKey,
-                await file.arrayBuffer(),
-                {
-                    httpMetadata: {
-                        contentType: mime_type,
-                    },
-                }
-            );
-
-            file_path = `https://media.crescentlearning.org/${newKey}`;
-        }
-
         // If user sent nothing to update
-        if (!title && !file) {
+        if (!title) {
             return json({ error: "Nothing to update" }, 400);
         }
 
         // Update DB
         await env.cldb.prepare(`
             UPDATE notes
-            SET title = ?, file_path = ?, mime_type = ?, file_size = ?
+            SET title = ?
             WHERE note_id = ?
         `).bind(
-            newTitle,
-            file_path,
-            mime_type,
-            file_size,
+            title,
             note_id
         ).run();
 
