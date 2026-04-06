@@ -17,38 +17,54 @@ async function hashOTP(otp) {
         .join("");
 }
 
-// 🚀 SEND EMAIL OTP
 export async function sendOTP(req, env) {
     const user = await requireAuth(req, env);
     if (!user) return json({ error: "Unauthorized" }, 401);
 
     const { email } = await req.json();
+    if (!email) return json({ error: "Email required" }, 400);
 
-    if (!email) {
-        return json({ error: "Email required" }, 400);
-    }
+    const now = Date.now();
 
-    const otpKey = `otp:${email}`;
-    const rateKey = `rate:${email}`;
+    // 🔴 Rate limit (1 request per 60 sec)
+    const recent = await env.cldb.prepare(`
+        SELECT created_at FROM otps 
+        WHERE email = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+    `).bind(email).first();
 
-    // ⚠️ Rate limit
-    const rateExists = await env.OTP_STORE.get(rateKey);
-    if (rateExists) {
+    if (recent && now - recent.created_at < 60 * 1000) {
         return json({
             success: false,
             message: "Too many requests. Try again in a minute."
         }, 429);
     }
 
-    await env.OTP_STORE.put(rateKey, "1", { expirationTtl: 60 });
+    // 🔥 Delete old OTPs for this email (important)
+    await env.cldb.prepare(`
+        DELETE FROM otps WHERE email = ?
+    `).bind(email).run();
 
     // 🔢 Generate + hash OTP
     const otp = generateOTP();
     const hashedOtp = await hashOTP(otp);
 
-    await env.OTP_STORE.put(otpKey, hashedOtp, { expirationTtl: 300 });
+    const expiresAt = now + 5 * 60 * 1000; // 5 min
 
-    // ✉️ Send email via Resend
+    // 💾 Store OTP
+    await env.cldb.prepare(`
+        INSERT INTO otps (id, email, otp_hash, expires_at, created_at, attempts)
+        VALUES (?, ?, ?, ?, ?, 0)
+    `).bind(
+        crypto.randomUUID(),
+        email,
+        hashedOtp,
+        expiresAt,
+        now
+    ).run();
+
+    // ✉️ Send email (Resend)
     const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
@@ -58,7 +74,7 @@ export async function sendOTP(req, env) {
         body: JSON.stringify({
             from: "noreply@crescentlearning.org",
             to: email,
-            subject: "OTP",
+            subject: "Your OTP Code",
             html: `
                 <div style="font-family: sans-serif;">
                     <h2>Your OTP is: ${otp}</h2>
@@ -80,11 +96,10 @@ export async function sendOTP(req, env) {
 
     return json({
         success: true,
-        message: "OTP sent to email"
+        message: "OTP sent successfully"
     });
 }
 
-// 🔐 VERIFY OTP
 export async function verifyOTP(req, env) {
     const { email, otp } = await req.json();
 
@@ -92,31 +107,70 @@ export async function verifyOTP(req, env) {
         return json({ error: "Email and OTP required" }, 400);
     }
 
-    const otpKey = `otp:${email}`;
+    const now = Date.now();
 
-    const storedHashedOtp = await env.OTP_STORE.get(otpKey);
+    const record = await env.cldb.prepare(`
+        SELECT id, otp_hash, expires_at, attempts
+        FROM otps
+        WHERE email = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+    `).bind(email).first();
 
-    if (!storedHashedOtp) {
+    if (!record) {
+        return json({
+            success: false,
+            message: "OTP not found"
+        }, 400);
+    }
+
+    // ⏱️ Expiry check
+    if (now > record.expires_at) {
+        await env.cldb.prepare(
+            "DELETE FROM otps WHERE id = ?"
+        ).bind(record.id).run();
+
         return json({
             success: false,
             message: "OTP expired"
         }, 400);
     }
 
+    // 🚫 Attempt limit (max 5 tries)
+    if (record.attempts >= 5) {
+        await env.cldb.prepare(
+            "DELETE FROM otps WHERE id = ?"
+        ).bind(record.id).run();
+
+        return json({
+            success: false,
+            message: "Too many attempts. Request a new OTP."
+        }, 429);
+    }
+
     const hashedInput = await hashOTP(otp);
 
-    if (storedHashedOtp !== hashedInput) {
+    if (record.otp_hash !== hashedInput) {
+        // ❌ increment attempts
+        await env.cldb.prepare(`
+            UPDATE otps 
+            SET attempts = attempts + 1 
+            WHERE id = ?
+        `).bind(record.id).run();
+
         return json({
             success: false,
             message: "Invalid OTP"
         }, 401);
     }
 
-    // ✅ delete after success
-    await env.OTP_STORE.delete(otpKey);
+    // ✅ success → delete OTP
+    await env.cldb.prepare(
+        "DELETE FROM otps WHERE id = ?"
+    ).bind(record.id).run();
 
     return json({
         success: true,
-        message: "OTP verified"
+        message: "OTP verified successfully"
     });
 }

@@ -410,30 +410,66 @@ export async function coursesput(req, env) {
 
         // 🚀 TRANSACTION
         const tx = env.cldb.transaction(async (txn) => {
+            // 1️⃣ Dynamic Update (only changed fields)
+            const fields = [];
+            const values = [];
 
-            // 1️⃣ Update course
-            await txn.prepare(`
-                UPDATE courses SET
-                    title = ?, description = ?, course_image = ?,
-                    subtitle = ?, language_tag = ?, category_tag = ?,
-                    duration = ?, price = ?,
-                    batch_start_date = ?, enrollment_end_date = ?, currency = ?
-                WHERE course_id = ?
-            `).bind(
-                updated.title,
-                updated.description,
-                updated.course_image,
-                updated.subtitle,
-                updated.language_tag,
-                updated.category_tag,
-                updated.duration,
-                updated.price,
-                updated.batch_start_date,
-                updated.enrollment_end_date,
-                updated.currency,
-                course_id
-            ).run();
+            if (title !== undefined) {
+                fields.push("title = ?");
+                values.push(title);
+            }
+            if (description !== undefined) {
+                fields.push("description = ?");
+                values.push(description);
+            }
+            if (course_image !== undefined) {
+                fields.push("course_image = ?");
+                values.push(course_image);
+            }
+            if (subtitle !== undefined) {
+                fields.push("subtitle = ?");
+                values.push(subtitle);
+            }
+            if (language_tag !== undefined) {
+                fields.push("language_tag = ?");
+                values.push(language_tag);
+            }
+            if (category_tag !== undefined) {
+                fields.push("category_tag = ?");
+                values.push(category_tag);
+            }
+            if (duration !== undefined) {
+                fields.push("duration = ?");
+                values.push(duration);
+            }
+            if (price !== undefined) {
+                fields.push("price = ?");
+                values.push(price);
+            }
+            if (batch_start_date !== undefined) {
+                fields.push("batch_start_date = ?");
+                values.push(batch_start_date);
+            }
+            if (enrollment_end_date !== undefined) {
+                fields.push("enrollment_end_date = ?");
+                values.push(enrollment_end_date);
+            }
+            if (currency !== undefined) {
+                fields.push("currency = ?");
+                values.push(currency);
+            }
 
+            // only run if something changed
+            if (fields.length > 0) {
+                const query = `
+        UPDATE courses SET ${fields.join(", ")}
+        WHERE course_id = ?
+    `;
+
+                await txn.prepare(query)
+                    .bind(...values, course_id)
+                    .run();
+            }
             // 2️⃣ Highlights
             if (Array.isArray(highlights)) {
                 await txn.prepare(
