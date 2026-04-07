@@ -97,7 +97,8 @@ export async function quizcreate(req, env) {
 
 export async function quizget(req, env) {
     try {
-        const { exam_id } = await req.json();
+        const url = new URL(req.url);
+        const exam_id = url.searchParams.get("exam_id");
 
         if (!exam_id) {
             return new Response("exam_id required", { status: 400 });
@@ -170,7 +171,10 @@ export async function quizget(req, env) {
 
 export async function quizgetall(req, env) {
     try {
-        const { unit_id, subject_id } = await req.json();
+        const url = new URL(req.url);
+
+        const unit_id = url.searchParams.get("unit_id");
+        const subject_id = url.searchParams.get("subject_id");
 
         // ✅ Validation
         if (!unit_id && !subject_id) {
@@ -685,7 +689,7 @@ export async function gradeExam(req, env) {
                 )
             );
         }
-        
+
         if (batchStmts.length > 0) {
             await env.cldb.batch(batchStmts);
         }
