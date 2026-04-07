@@ -286,7 +286,8 @@ export async function coursesput(req, env) {
         const user = await requireAuth(req, env);
         if (!user) return json({ error: "Unauthorized" }, 401);
 
-        let course_id,
+        let {
+            course_id,
             title,
             description,
             course_image,
@@ -299,11 +300,12 @@ export async function coursesput(req, env) {
             enrollment_end_date,
             currency,
             highlights,
-            languages;
+            languages
+        } = {};
 
         const contentType = req.headers.get("Content-Type") || "";
 
-        // 🔵 MULTIPART (image upload)
+        // 🔵 MULTIPART
         if (contentType.includes("multipart/form-data")) {
             const formData = await req.formData();
 
@@ -320,32 +322,18 @@ export async function coursesput(req, env) {
             enrollment_end_date = formData.get("enrollment_end_date");
             currency = formData.get("currency");
 
-            // arrays
-            try {
-                highlights = JSON.parse(formData.get("highlights"));
-            } catch {
-                highlights = undefined;
-            }
+            try { highlights = JSON.parse(formData.get("highlights")); } catch { }
+            try { languages = JSON.parse(formData.get("languages")); } catch { }
 
-            try {
-                languages = JSON.parse(formData.get("languages"));
-            } catch {
-                languages = undefined;
-            }
-
-            // 🔴 get existing course (needed for image update)
             const existing = await env.cldb.prepare(
                 "SELECT * FROM courses WHERE course_id = ?"
             ).bind(course_id).first();
 
-            if (!existing) {
-                return json({ error: "Course not found" }, 404);
-            }
+            if (!existing) return json({ error: "Course not found" }, 404);
 
             const file = formData.get("course_image");
 
             if (file instanceof File) {
-                // 🔥 update existing image
                 const imageId = existing.course_image?.split("/").slice(-2, -1)[0];
 
                 if (imageId) {
@@ -360,9 +348,7 @@ export async function coursesput(req, env) {
             }
 
         } else {
-            // 🟢 JSON
             const body = await req.json();
-
             ({
                 course_id,
                 title,
@@ -385,7 +371,6 @@ export async function coursesput(req, env) {
             return json({ error: "course_id is required" }, 400);
         }
 
-        // 🔴 Fetch existing (for partial updates)
         const existing = await env.cldb.prepare(
             "SELECT * FROM courses WHERE course_id = ?"
         ).bind(course_id).first();
@@ -394,128 +379,74 @@ export async function coursesput(req, env) {
             return json({ error: "Course not found" }, 404);
         }
 
-        const updated = {
-            title: title ?? existing.title,
-            description: description ?? existing.description,
-            course_image: course_image ?? existing.course_image,
-            subtitle: subtitle ?? existing.subtitle,
-            language_tag: language_tag ?? existing.language_tag,
-            category_tag: category_tag ?? existing.category_tag,
-            duration: duration ?? existing.duration,
-            price: price ?? existing.price,
-            batch_start_date: batch_start_date ?? existing.batch_start_date,
-            enrollment_end_date: enrollment_end_date ?? existing.enrollment_end_date,
-            currency: currency ?? existing.currency
+        const batch = [];
+
+        // 🔥 1. Dynamic UPDATE
+        const fields = [];
+        const values = [];
+
+        const map = {
+            title, description, course_image, subtitle,
+            language_tag, category_tag, duration,
+            price, batch_start_date, enrollment_end_date, currency
         };
 
-        // 🚀 TRANSACTION
-        const tx = env.cldb.transaction(async (txn) => {
-            // 1️⃣ Dynamic Update (only changed fields)
-            const fields = [];
-            const values = [];
+        for (const [key, value] of Object.entries(map)) {
+            if (value !== undefined) {
+                fields.push(`${key} = ?`);
+                values.push(value);
+            }
+        }
 
-            if (title !== undefined) {
-                fields.push("title = ?");
-                values.push(title);
-            }
-            if (description !== undefined) {
-                fields.push("description = ?");
-                values.push(description);
-            }
-            if (course_image !== undefined) {
-                fields.push("course_image = ?");
-                values.push(course_image);
-            }
-            if (subtitle !== undefined) {
-                fields.push("subtitle = ?");
-                values.push(subtitle);
-            }
-            if (language_tag !== undefined) {
-                fields.push("language_tag = ?");
-                values.push(language_tag);
-            }
-            if (category_tag !== undefined) {
-                fields.push("category_tag = ?");
-                values.push(category_tag);
-            }
-            if (duration !== undefined) {
-                fields.push("duration = ?");
-                values.push(duration);
-            }
-            if (price !== undefined) {
-                fields.push("price = ?");
-                values.push(price);
-            }
-            if (batch_start_date !== undefined) {
-                fields.push("batch_start_date = ?");
-                values.push(batch_start_date);
-            }
-            if (enrollment_end_date !== undefined) {
-                fields.push("enrollment_end_date = ?");
-                values.push(enrollment_end_date);
-            }
-            if (currency !== undefined) {
-                fields.push("currency = ?");
-                values.push(currency);
-            }
+        if (fields.length > 0) {
+            batch.push(
+                env.cldb.prepare(`
+                    UPDATE courses SET ${fields.join(", ")}
+                    WHERE course_id = ?
+                `).bind(...values, course_id)
+            );
+        }
 
-            // only run if something changed
-            if (fields.length > 0) {
-                const query = `
-        UPDATE courses SET ${fields.join(", ")}
-        WHERE course_id = ?
-    `;
-
-                await txn.prepare(query)
-                    .bind(...values, course_id)
-                    .run();
-            }
-            // 2️⃣ Highlights
-            if (Array.isArray(highlights)) {
-                await txn.prepare(
+        // 🔥 2. Highlights
+        if (Array.isArray(highlights)) {
+            batch.push(
+                env.cldb.prepare(
                     "DELETE FROM course_highlights WHERE course_id = ?"
-                ).bind(course_id).run();
+                ).bind(course_id)
+            );
 
-                if (highlights.length > 0) {
-                    const stmt = txn.prepare(`
+            for (const h of highlights) {
+                batch.push(
+                    env.cldb.prepare(`
                         INSERT INTO course_highlights (id, course_id, highlight)
                         VALUES (?, ?, ?)
-                    `);
-
-                    for (const h of highlights) {
-                        await stmt.bind(
-                            crypto.randomUUID(),
-                            course_id,
-                            h
-                        ).run();
-                    }
-                }
+                    `).bind(crypto.randomUUID(), course_id, h)
+                );
             }
+        }
 
-            // 3️⃣ Languages
-            if (Array.isArray(languages)) {
-                await txn.prepare(
+        // 🔥 3. Languages
+        if (Array.isArray(languages)) {
+            batch.push(
+                env.cldb.prepare(
                     "DELETE FROM course_languages WHERE course_id = ?"
-                ).bind(course_id).run();
+                ).bind(course_id)
+            );
 
-                if (languages.length > 0) {
-                    const stmt = txn.prepare(`
+            for (const l of languages) {
+                batch.push(
+                    env.cldb.prepare(`
                         INSERT INTO course_languages (id, course_id, language)
                         VALUES (?, ?, ?)
-                    `);
-
-                    for (const l of languages) {
-                        await stmt.bind(
-                            crypto.randomUUID(),
-                            course_id,
-                            l
-                        ).run();
-                    }
-                }
+                    `).bind(crypto.randomUUID(), course_id, l)
+                );
             }
-        });
+        }
 
-        await tx();
+        // ✅ EXECUTE (atomic in D1)
+        if (batch.length > 0) {
+            await env.cldb.batch(batch);
+        }
 
         return json({
             success: true,
