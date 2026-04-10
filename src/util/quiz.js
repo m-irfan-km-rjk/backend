@@ -140,6 +140,7 @@ export async function quizget(req, env) {
             const BASE_URL = "https://media.crescentlearning.org";
 
             questions.push({
+                question_id: q.id,
                 type: q.type,
                 title: q.title || "",
                 description: q.description || "",
