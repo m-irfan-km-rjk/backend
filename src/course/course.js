@@ -48,6 +48,25 @@ export async function coursesget(req, env) {
         WHERE course_id IN (${placeholders})
     `).bind(...courseIds).all();
 
+    const educatorsRes = await env.cldb.prepare(`
+    SELECT ce.course_id, e.id, e.name, e.qualification, e.image
+    FROM course_educators ce
+    JOIN educators e ON ce.educator_id = e.id
+    WHERE ce.course_id IN (${placeholders})
+`).bind(...courseIds).all();
+
+    const educatorMap = {};
+
+    for (const e of educatorsRes.results) {
+        if (!educatorMap[e.course_id]) educatorMap[e.course_id] = [];
+
+        educatorMap[e.course_id].push({
+            name: e.name,
+            qualification: e.qualification,
+            image: e.image
+        });
+    }
+
     // 3️⃣ Maps
     const highlightMap = {};
     for (const h of highlightsRes.results) {
@@ -65,7 +84,8 @@ export async function coursesget(req, env) {
     const finalCourses = courses.map(course => ({
         ...course,
         highlights: highlightMap[course.course_id] || [],
-        languages: languageMap[course.course_id] || []
+        languages: languageMap[course.course_id] || [],
+        educators: educatorMap[course.course_id] || []
     }));
 
     return json({
@@ -91,7 +111,8 @@ export async function coursespost(req, env) {
             enrollment_end_date = null,
             currency = "INR",
             highlights = [],
-            languages = [];
+            languages = [],
+            educators = [];
 
         const contentType = req.headers.get("Content-Type") || "";
 
@@ -115,9 +136,11 @@ export async function coursespost(req, env) {
             try {
                 highlights = JSON.parse(formData.get("highlights") || "[]");
                 languages = JSON.parse(formData.get("languages") || "[]");
+                educators = JSON.parse(formData.get("educators") || "[]");
             } catch {
                 highlights = [];
                 languages = [];
+                educators = [];
             }
 
             // 🖼️ image upload
@@ -145,7 +168,8 @@ export async function coursespost(req, env) {
                 enrollment_end_date = null,
                 currency = "INR",
                 highlights =[],
-                languages =[]
+                languages =[],
+                educators =[]
             } = body);
         }
 
@@ -214,6 +238,21 @@ export async function coursespost(req, env) {
                         crypto.randomUUID(),
                         course_id,
                         l
+                    ).run();
+                }
+            }
+
+            // 4️⃣ Educators
+            if (Array.isArray(educators) && educators.length > 0) {
+                const stmt = txn.prepare(`
+        INSERT INTO course_educators (course_id, educator_id)
+        VALUES (?, ?)
+    `);
+
+                for (const eId of educators) {
+                    await stmt.bind(
+                        course_id,
+                        eId
                     ).run();
                 }
             }
@@ -455,5 +494,213 @@ export async function coursesput(req, env) {
 
     } catch (error) {
         return json({ error: error.message || error }, 500);
+    }
+}
+
+export async function educatorspost(req, env) {
+    const user = await requireAuth(req, env);
+    if (!user || user.role != "admin") return json({ error: "Unauthorized" }, 401);
+    try {
+        const contentType = req.headers.get("Content-Type") || "";
+
+        let name = null;
+        let qualification = null;
+        let image = null;
+
+        if (contentType.includes("multipart/form-data")) {
+            const formData = await req.formData();
+
+            name = formData.get("name");
+            qualification = formData.get("qualification");
+
+            const file = formData.get("image");
+
+            if (file instanceof File) {
+                const uploaded = await uploadImage(file, env);
+                image = uploaded.result.variants[0];
+            }
+
+        } else {
+            const body = await req.json();
+            ({ name, qualification, image } = body);
+        }
+
+        if (!name) {
+            return json({ error: "name is required" }, 400);
+        }
+
+        const result = await env.cldb.prepare(`
+            INSERT INTO educators (name, qualification, image)
+            VALUES (?, ?, ?)
+        `).bind(name, qualification, image).run();
+
+        return json({
+            success: true,
+            educator_id: result.meta.last_row_id
+        });
+
+    } catch (e) {
+        return json({ error: e.message }, 500);
+    }
+}
+
+export async function educatorsget(req, env) {
+    try {
+        const res = await env.cldb.prepare(`
+            SELECT id, name, qualification, image
+            FROM educators
+            ORDER BY id DESC
+        `).all();
+
+        return json({
+            success: true,
+            educators: res.results
+        });
+
+    } catch (e) {
+        return json({ error: e.message }, 500);
+    }
+}
+
+export async function educatorsgetone(req, env) {
+    try {
+        const url = new URL(req.url);
+        const id = url.searchParams.get("id");
+
+        if (!id) {
+            return new Response("id required", { status: 400 });
+        }
+
+        const educator = await env.cldb.prepare(`
+            SELECT id, name, qualification, image
+            FROM educators
+            WHERE id = ?
+        `).bind(id).first();
+
+        if (!educator) {
+            return new Response("Not found", { status: 404 });
+        }
+
+        return json({
+            success: true,
+            educator
+        });
+
+    } catch (e) {
+        return json({ error: e.message }, 500);
+    }
+}
+
+export async function educatorsput(req, env) {
+    try {
+        const contentType = req.headers.get("Content-Type") || "";
+
+        let id, name, qualification, image;
+
+        if (contentType.includes("multipart/form-data")) {
+            const formData = await req.formData();
+
+            id = formData.get("id");
+            name = formData.get("name");
+            qualification = formData.get("qualification");
+
+            const existing = await env.cldb.prepare(`
+                SELECT image FROM educators WHERE id = ?
+            `).bind(id).first();
+
+            if (!existing) {
+                return json({ error: "Educator not found" }, 404);
+            }
+
+            const file = formData.get("image");
+
+            if (file instanceof File) {
+                const uploaded = await uploadImage(file, env);
+                image = uploaded.result.variants[0];
+            } else {
+                image = existing.image;
+            }
+
+        } else {
+            const body = await req.json();
+            ({ id, name, qualification, image } = body);
+        }
+
+        if (!id) {
+            return json({ error: "id required" }, 400);
+        }
+
+        const fields = [];
+        const values = [];
+
+        if (name !== undefined) {
+            fields.push("name = ?");
+            values.push(name);
+        }
+
+        if (qualification !== undefined) {
+            fields.push("qualification = ?");
+            values.push(qualification);
+        }
+
+        if (image !== undefined) {
+            fields.push("image = ?");
+            values.push(image);
+        }
+
+        if (fields.length === 0) {
+            return json({ error: "Nothing to update" }, 400);
+        }
+
+        await env.cldb.prepare(`
+            UPDATE educators
+            SET ${fields.join(", ")}
+            WHERE id = ?
+        `).bind(...values, id).run();
+
+        return json({
+            success: true,
+            message: "Educator updated"
+        });
+
+    } catch (e) {
+        return json({ error: e.message }, 500);
+    }
+}
+
+export async function educatorsdelete(req, env) {
+    try {
+        const { id } = await req.json();
+
+        if (!id) {
+            return new Response("id required", { status: 400 });
+        }
+
+        // optional: get image for deletion
+        const existing = await env.cldb.prepare(`
+            SELECT image FROM educators WHERE id = ?
+        `).bind(id).first();
+
+        if (!existing) {
+            return new Response("Not found", { status: 404 });
+        }
+
+        await deleteImage(existing.image, env);
+
+        // delete DB
+        await env.cldb.prepare(`
+            DELETE FROM educators WHERE id = ?
+        `).bind(id).run();
+
+        // optional: delete image from storage
+        // (depends on how your upload util works)
+
+        return json({
+            success: true,
+            message: "Educator deleted"
+        });
+
+    } catch (e) {
+        return json({ error: e.message }, 500);
     }
 }
