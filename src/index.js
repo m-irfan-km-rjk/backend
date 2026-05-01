@@ -12,10 +12,10 @@ import { subjectsget, subjectsdelete, subjectspost, subjectsput } from "./course
 import { getVideoUploadLink } from "./util/upload";
 import { streamWebhook } from "./util/video";
 import { quizcreate, quizget, quizgetall, quizdelete, quizupdate, quizimageupload, quizimagedelete, submitExam, gradeExam, getExamResult } from "./util/quiz";
-import { sendOTP, verifyOTP } from "./util/otp";
+import { cleanupOTPs, resetPassword, sendOTP, verifyOTP } from "./util/otp";
 
 export default {
-	async fetch(req, env, ctx) {
+	async fetch(req, env) {
 		const url = URL.parse(req.url);
 		const path = url.pathname;
 		const method = req.method;
@@ -94,7 +94,12 @@ export default {
 		//otp
 		else if (path === "/send-otp" && method === "POST") return sendOTP(req, env);
 		else if (path === "/verify-otp" && method === "POST") return verifyOTP(req, env);
+		else if (path === "/reset-password" && method === "POST") return resetPassword(req, env);
 
 		return new Response("Not Found", { status: 404 });
 	},
+
+	async scheduled() {
+		await cleanupOTPs(env);
+	}
 };

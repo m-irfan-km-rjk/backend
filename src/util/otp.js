@@ -1,4 +1,5 @@
 import json from "./json";
+import { hashPassword } from "./hash";
 
 // 🔐 Generate OTP
 function generateOTP() {
@@ -98,6 +99,10 @@ export async function sendOTP(req, env) {
 }
 
 export async function verifyOTP(req, env) {
+    await env.cldb.prepare(`
+    DELETE FROM otps WHERE expires_at < ?
+`).bind(Date.now()).run();
+
     const { email, otp } = await req.json();
 
     if (!email || !otp) {
@@ -161,13 +166,84 @@ export async function verifyOTP(req, env) {
         }, 401);
     }
 
-    // ✅ success → delete OTP
+    // delete OTP
     await env.cldb.prepare(
         "DELETE FROM otps WHERE id = ?"
     ).bind(record.id).run();
 
+    // remove old reset tokens
+    await env.cldb.prepare(`
+    DELETE FROM password_resets WHERE email = ?
+`).bind(email).run();
+
+    // create new reset token
+    const resetToken = crypto.randomUUID();
+
+    await env.cldb.prepare(`
+    INSERT INTO password_resets (id, email, expires_at)
+    VALUES (?, ?, ?)
+`).bind(
+        resetToken,
+        email,
+        Date.now() + 10 * 60 * 1000
+    ).run();
+
     return json({
         success: true,
-        message: "OTP verified successfully"
+        message: "OTP verified successfully",
+        reset_token: resetToken
     });
+}
+
+export async function resetPassword(req, env) {
+    const { email, new_password, reset_token } = await req.json();
+
+    if (!email || !new_password || !reset_token) {
+        return json({ error: "Missing fields" }, 400);
+    }
+
+    const record = await env.cldb.prepare(`
+        SELECT * FROM password_resets
+        WHERE id = ? AND email = ?
+    `).bind(reset_token, email).first();
+
+    if (!record) {
+        return json({ error: "Invalid token" }, 400);
+    }
+
+    if (Date.now() > record.expires_at) {
+        return json({ error: "Token expired" }, 400);
+    }
+
+    // 🔐 hash password (IMPORTANT)
+    const hashedPassword = await hashPassword(new_password);
+
+    await env.cldb.prepare(`
+        UPDATE users SET password = ?
+        WHERE email = ?
+    `).bind(hashedPassword, email).run();
+
+    // delete token
+    await env.cldb.prepare(`
+        DELETE FROM password_resets WHERE id = ?
+    `).bind(reset_token).run();
+
+    return json({
+        success: true,
+        message: "Password reset successful"
+    });
+}
+
+async function cleanupOTPs(env) {
+    const now = Date.now();
+
+    await env.cldb.prepare(`
+        DELETE FROM otps WHERE expires_at < ?
+    `).bind(now).run();
+
+    await env.cldb.prepare(`
+        DELETE FROM password_resets WHERE expires_at < ?
+    `).bind(now).run();
+
+    console.log("OTP cleanup ran at", new Date(now).toISOString());
 }
