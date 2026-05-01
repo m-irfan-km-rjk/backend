@@ -180,14 +180,57 @@ export async function profileget(req, env) {
 }
 
 export async function profileput(req, env) {
-    const user = await requireAuth(req, env);
-    if (!user) return json({ error: "Unauthorized" }, 401);
-    const body = await req.json();
-    const { name, role, email, phone } = body;
-    await env.cldb.prepare(
-        "UPDATE users SET name = ?, role = ?, email = ?, phone = ? WHERE user_id = ?"
-    ).bind(name, role, email, phone, user.user_id).run();
-    return json({ success: true, message: "Profile updated successfully" });
+    try {
+        const user = await requireAuth(req, env);
+        if (!user) return json({ error: "Unauthorized" }, 401);
+
+        const body = await req.json();
+
+        // 🔍 Get existing user
+        const existing = await env.cldb.prepare(`
+            SELECT * FROM users WHERE user_id = ?
+        `).bind(user.user_id).first();
+
+        if (!existing) {
+            return json({ error: "User not found" }, 404);
+        }
+
+        // 🧠 Dynamic update (same pattern as coursesput)
+        const fields = [];
+        const values = [];
+
+        const map = {
+            name: body.name,
+            role: body.role,
+            email: body.email,
+            phone: body.phone
+        };
+
+        for (const [key, value] of Object.entries(map)) {
+            if (value !== undefined) {
+                fields.push(`${key} = ?`);
+                values.push(value);
+            }
+        }
+
+        if (fields.length === 0) {
+            return json({ error: "Nothing to update" }, 400);
+        }
+
+        await env.cldb.prepare(`
+            UPDATE users
+            SET ${fields.join(", ")}
+            WHERE user_id = ?
+        `).bind(...values, user.user_id).run();
+
+        return json({
+            success: true,
+            message: "Profile updated successfully"
+        });
+
+    } catch (e) {
+        return json({ error: e.message || e }, 500);
+    }
 }
 
 export async function profileimageput(req, env) {
