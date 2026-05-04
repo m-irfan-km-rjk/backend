@@ -183,11 +183,12 @@ export async function coursespost(req, env) {
         const course_id = crypto.randomUUID();
         const created_at = new Date().toISOString();
 
-        // 🚀 TRANSACTION
-        const tx = env.cldb.transaction(async (txn) => {
+        // 🚀 BATCH
+        const batch = [];
 
-            // 1️⃣ Insert course
-            await txn.prepare(`
+        // 1️⃣ Insert course
+        batch.push(
+            env.cldb.prepare(`
                 INSERT INTO courses (
                     course_id, title, description, course_image,
                     created_at, duration, price, subtitle,
@@ -208,57 +209,57 @@ export async function coursespost(req, env) {
                 batch_start_date,
                 enrollment_end_date,
                 currency
-            ).run();
+            )
+        );
 
-            // 2️⃣ Highlights
-            if (Array.isArray(highlights) && highlights.length > 0) {
-                const stmt = txn.prepare(`
-                    INSERT INTO course_highlights (id, course_id, highlight)
-                    VALUES (?, ?, ?)
-                `);
-
-                for (const h of highlights) {
-                    await stmt.bind(
+        // 2️⃣ Highlights
+        if (Array.isArray(highlights) && highlights.length > 0) {
+            for (const h of highlights) {
+                batch.push(
+                    env.cldb.prepare(`
+                        INSERT INTO course_highlights (id, course_id, highlight)
+                        VALUES (?, ?, ?)
+                    `).bind(
                         crypto.randomUUID(),
                         course_id,
                         h
-                    ).run();
-                }
+                    )
+                );
             }
+        }
 
-            // 3️⃣ Languages
-            if (Array.isArray(languages) && languages.length > 0) {
-                const stmt = txn.prepare(`
-                    INSERT INTO course_languages (id, course_id, language)
-                    VALUES (?, ?, ?)
-                `);
-
-                for (const l of languages) {
-                    await stmt.bind(
+        // 3️⃣ Languages
+        if (Array.isArray(languages) && languages.length > 0) {
+            for (const l of languages) {
+                batch.push(
+                    env.cldb.prepare(`
+                        INSERT INTO course_languages (id, course_id, language)
+                        VALUES (?, ?, ?)
+                    `).bind(
                         crypto.randomUUID(),
                         course_id,
                         l
-                    ).run();
-                }
+                    )
+                );
             }
+        }
 
-            // 4️⃣ Educators
-            if (Array.isArray(educators) && educators.length > 0) {
-                const stmt = txn.prepare(`
-                    INSERT INTO course_educators (course_id, educator_id)
-                    VALUES (?, ?)
-                `);
-
-                for (const eId of educators) {
-                    await stmt.bind(
+        // 4️⃣ Educators
+        if (Array.isArray(educators) && educators.length > 0) {
+            for (const eId of educators) {
+                batch.push(
+                    env.cldb.prepare(`
+                        INSERT INTO course_educators (course_id, educator_id)
+                        VALUES (?, ?)
+                    `).bind(
                         course_id,
                         eId
-                    ).run();
-                }
+                    )
+                );
             }
-        });
+        }
 
-        await tx();
+        await env.cldb.batch(batch);
 
         return json({
             success: true,
