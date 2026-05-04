@@ -105,9 +105,9 @@ export async function coursespost(req, env) {
             subtitle = null,
             language_tag = null,
             category_tag = null,
-            duration,
-            price,
-            batch_start_date,
+            duration = null,
+            price = null,
+            batch_start_date = null,
             enrollment_end_date = null,
             currency = "INR",
             highlights = [],
@@ -126,10 +126,10 @@ export async function coursespost(req, env) {
             language_tag = formData.get("language_tag");
             category_tag = formData.get("category_tag");
 
-            duration = Number(formData.get("duration"));
-            price = Number(formData.get("price"));
-            batch_start_date = formData.get("batch_start_date");
-            enrollment_end_date = formData.get("enrollment_end_date");
+            duration = formData.get("duration") ? Number(formData.get("duration")) : null;
+            price = formData.get("price") ? Number(formData.get("price")) : null;
+            batch_start_date = formData.get("batch_start_date") || null;
+            enrollment_end_date = formData.get("enrollment_end_date") || null;
             currency = formData.get("currency") || "INR";
 
             // 🔥 arrays (sent as JSON string from frontend)
@@ -155,35 +155,35 @@ export async function coursespost(req, env) {
             // 🔵 JSON fallback
             const body = await req.json();
 
-            ({
-                title = null,
-                description = null,
-                course_image = null,
-                subtitle = null,
-                language_tag = null,
-                category_tag = null,
-                duration,
-                price,
-                batch_start_date,
-                enrollment_end_date = null,
-                currency = "INR",
-                highlights =[],
-                languages =[],
-                educators =[]
-            } = body);
+            title = body.title || null;
+            description = body.description || null;
+            course_image = body.course_image || null;
+            subtitle = body.subtitle || null;
+            language_tag = body.language_tag || null;
+            category_tag = body.category_tag || null;
+
+            duration = body.duration ?? null;
+            price = body.price ?? null;
+            batch_start_date = body.batch_start_date ?? null;
+            enrollment_end_date = body.enrollment_end_date ?? null;
+            currency = body.currency || "INR";
+
+            highlights = body.highlights || [];
+            languages = body.languages || [];
+            educators = body.educators || [];
         }
 
-        // 🔴 Required validations
-        if (price == null || duration == null || !batch_start_date) {
+        // 🔴 REQUIRED VALIDATION (UPDATED)
+        if (!title || !description || !course_image) {
             return json({
-                error: "price, duration, batch_start_date are required"
+                error: "title, description and course_image are required"
             }, 400);
         }
 
         const course_id = crypto.randomUUID();
         const created_at = new Date().toISOString();
 
-        // 🚀 TRANSACTION (important)
+        // 🚀 TRANSACTION
         const tx = env.cldb.transaction(async (txn) => {
 
             // 1️⃣ Insert course
@@ -245,9 +245,9 @@ export async function coursespost(req, env) {
             // 4️⃣ Educators
             if (Array.isArray(educators) && educators.length > 0) {
                 const stmt = txn.prepare(`
-        INSERT INTO course_educators (course_id, educator_id)
-        VALUES (?, ?)
-    `);
+                    INSERT INTO course_educators (course_id, educator_id)
+                    VALUES (?, ?)
+                `);
 
                 for (const eId of educators) {
                     await stmt.bind(
