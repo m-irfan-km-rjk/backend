@@ -234,7 +234,7 @@ export async function resetPassword(req, env) {
     });
 }
 
-async function cleanupOTPs(env) {
+export async function cleanupOTPs(env) {
     const now = Date.now();
 
     await env.cldb.prepare(`
