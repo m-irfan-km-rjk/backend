@@ -279,7 +279,7 @@ export async function coursesdelete(req, env) {
 
         const { id } = await req.json();
 
-        // 1. Fetch course to get image
+        // 1. Fetch course
         const courseRow = await env.cldb
             .prepare("SELECT course_image FROM courses WHERE course_id = ?")
             .bind(id)
@@ -289,33 +289,61 @@ export async function coursesdelete(req, env) {
             return json({ error: "Course not found" }, 404);
         }
 
-        // 2. Delete Course Image
+        // 2. Delete course image
         if (courseRow.course_image) {
-            const imageId = courseRow.course_image.split("/").slice(-2, -1)[0];
             try {
+                const imageId = courseRow.course_image
+                    .split("/")
+                    .slice(-2, -1)[0];
+
                 await deleteImage(imageId, env);
             } catch (e) {
-                console.error(`Failed to delete course image for course ${id}:`, e);
+                console.error(
+                    `Failed to delete course image for course ${id}:`,
+                    e
+                );
             }
         }
 
-        // 3. Get all Subjects
+        // 3. Get subjects
         const { results: subjects } = await env.cldb
             .prepare("SELECT subject_id FROM subjects WHERE course_id = ?")
             .bind(id)
             .all();
 
-        // 4. Cleanup each subject (deletes units, videos, notes internally)
+        // 4. Cleanup subjects
         for (const sub of subjects) {
             await cleanupSubject(sub.subject_id, env);
         }
 
-        // 5. Delete Course Row
-        await env.cldb.prepare(
-            "DELETE FROM courses WHERE course_id = ?"
-        ).bind(id).run();
+        // 5. Delete related tables
+        await env.cldb.batch([
+            env.cldb.prepare(`
+                DELETE FROM course_highlights
+                WHERE course_id = ?
+            `).bind(id),
 
-        return json({ success: true, message: "Course deleted successfully" });
+            env.cldb.prepare(`
+                DELETE FROM course_languages
+                WHERE course_id = ?
+            `).bind(id),
+
+            env.cldb.prepare(`
+                DELETE FROM course_educators
+                WHERE course_id = ?
+            `).bind(id),
+
+            env.cldb.prepare(`
+                DELETE FROM courses
+                WHERE course_id = ?
+            `).bind(id)
+        ]);
+
+        return json({
+            success: true,
+            message: "Course deleted successfully"
+        });
+
     } catch (error) {
         return json({ error: error.message || error }, 500);
     }
